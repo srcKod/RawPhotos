@@ -16,6 +16,16 @@ Electron + Vue 3 桌面应用：通过任意 **OpenAI 兼容的中转 / 代理�
 - 代码风格：**2 空格、单引号、不写分号**，跟现有文件一致。
 - 改了主进程（`src/main` / `src/preload`）需要重启 dev 才生效（一般自动重启）；纯渲染层热更新。
 
+## Git 提交规范
+
+- 提交说明只保留**标题 + 必要正文**，作者为仓库维护者本人。
+- **禁止**在 commit message 中加入任何 AI 工具署名，包括但不限于：
+  - `Co-authored-by: Cursor <cursoragent@cursor.com>`
+  - `Co-authored-by: Claude …` / `🤖 Generated with …` 等（除非维护者明确要求保留）
+- 提交前自检：`git log -1 --format=%B`，确认无上述 trailer。
+- 若历史里误带了 Cursor 署名：重写 commit 说明后 `git push --force-with-lease origin main`（需本机已登录 GitHub）。
+- 在 Cursor 里提交时，关闭 Agent 自动追加 Co-authored-by 的选项（Settings → Git / Commit 相关项）。
+
 ## 进程 / 文件地图
 
 ```
