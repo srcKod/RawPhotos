@@ -1,6 +1,6 @@
 {
   "name": "rawphotos",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "RawPhotos · AI 文生图/文生视频桌面应用（多接口可配置，OpenAI 兼容）",
   "author": "RawPhotos",
   "main": "./out/main/index.js",
