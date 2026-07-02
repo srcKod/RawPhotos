@@ -704,17 +704,41 @@ function registerIpc() {
         }
       }
       // 图生视频：部分模型（如 grok-imagine-video-1.5）只支持 image-to-video，
-      // 纯文生视频会被拒（Text-to-video is not supported）。带参考图时以 dataURL 传 image 字段（中转最通用的约定）。
+      // 纯文生视频会被拒（Text-to-video is not supported）。image 字段类型各家不一
+      // （string dataURL / {url} 对象 / 数组 / image_url），422 类型错时逐个变体降级重试。
+      let bodies = [body]
       if (payload.imageB64) {
-        body.image = `data:${mimeOf(payload.imageName || 'image.png')};base64,${payload.imageB64}`
+        const dataUrl = `data:${mimeOf(payload.imageName || 'image.png')};base64,${payload.imageB64}`
+        // nexus（Rust serde）实测报 image: invalid type: string，期望对象/数组，对象形式放最前
+        bodies = [
+          { ...body, image: { url: dataUrl } },
+          { ...body, image: [dataUrl] },
+          { ...body, image: [{ url: dataUrl }] },
+          { ...body, image_url: dataUrl },
+          { ...body, image: dataUrl }
+        ]
       }
-
-      const { json } = await requestJson(url, {
-        method: 'POST',
-        apiKey: provider.apiKey,
-        body,
-        timeoutMs: 600000
-      })
+      let json = null
+      let lastErr = null
+      for (const b of bodies) {
+        try {
+          ;({ json } = await requestJson(url, {
+            method: 'POST',
+            apiKey: provider.apiKey,
+            body: b,
+            timeoutMs: 600000
+          }))
+          lastErr = null
+          break
+        } catch (err) {
+          lastErr = err
+          // 只有明显是 image 字段反序列化/类型问题才继续试下一种；其他错误直接抛
+          const msg = String(err.message || '')
+          const typeIssue = err.status === 422 || /deserialize|invalid type/i.test(msg)
+          if (!typeIssue) throw err
+        }
+      }
+      if (lastErr) throw lastErr
 
       let videos = pickMediaItems(json)
       if (!videos.length) {
