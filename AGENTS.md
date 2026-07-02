@@ -149,6 +149,11 @@ src/renderer/src/
 
 标题栏品牌名→`TitleBar.vue .tb-name`；网站链接→`TitleBar.vue SITE`(当前 https://nexus.apimf.top)；窗口标题→`main` BrowserWindow `title`；HTML 标题→`renderer/index.html`；安装包/快捷方式/appId→`electron-builder.yml`；包名→`package.json`；默认目录/文件名前缀→`main` `defaultSaveDir()`/`media:save`；QQ 群→`AboutView.vue QQ_GROUP`。
 
+## 踩过的坑（务必避免）
+
+- **Vue reactive 不能直接过 IPC（2026-07 已踩，致命）**：`ref/reactive` 的值是 Proxy，经 `window.api.*` 跨 contextBridge/ipcRenderer 序列化会抛 `An object could not be cloned`；若调用点包在 `try{}catch{//静默}` 里，**功能就悄无声息地永远失效**——对话历史 `chatsSave({ messages: messages.value })` 就这么挂的（`rawphotos-chats.json` 从未写出，用户以为"没有自动保存历史"）。规矩：**凡传对象/数组给 `window.api.*`，先 `JSON.parse(JSON.stringify(x))` 剥代理**（手工新建的纯字面量对象除外）；静默 catch 的 IPC 调用要格外警惕这类被吞的错。
+- ChatView 是 `v-if` 挂载（切页销毁）：进页要 `loadConvList` 后**自动 openConv 最近一次会话**（否则用户每次切回都看到空白，以为历史丢了）；`onUnmounted` 里兜底 `autoSave()`。
+
 ## 待确认 / 已知假设
 
 - **视频接口**无统一标准：默认 `/videos/generations`（可在设置高级改），同步/异步都兼容；具体视频模型名需用户填。

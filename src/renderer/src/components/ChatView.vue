@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { marked } from 'marked'
 import { store, persistSettings, activeProvider } from '../store'
 import { toast } from '../composables/useToast'
@@ -124,7 +124,10 @@ async function autoSave() {
   const firstUser = messages.value.find((m) => m.role === 'user')
   const title = ((firstUser && firstUser.text) || '新对话').slice(0, 24) || '新对话'
   try {
-    await window.api.chatsSave({ id: currentId.value, title, messages: messages.value })
+    // 必须剥掉 Vue reactive 代理再过 IPC：Proxy 无法被 Electron 序列化，
+    // 直接传会抛 "object could not be cloned" 被下面 catch 吞掉 → 历史永远存不上（曾致命）
+    const plain = JSON.parse(JSON.stringify({ id: currentId.value, title, messages: messages.value }))
+    await window.api.chatsSave(plain)
     loadConvList()
   } catch {
     // 保存失败不打断对话
@@ -327,7 +330,14 @@ function onKeydown(e) {
 onMounted(async () => {
   await loadModels()
   ensureChatModel()
-  loadConvList()
+  await loadConvList()
+  // 进来自动接上最近一次会话（原来每次进页都是空白，用户以为历史丢了）
+  if (!currentId.value && convList.value.length) openConv(convList.value[0].id)
+})
+
+// 切到其他页签组件会被销毁（v-if），离开前兜底存一次
+onUnmounted(() => {
+  autoSave()
 })
 </script>
 
