@@ -688,10 +688,11 @@ function registerIpc() {
     try {
       if (!baseUrl) throw new Error('未配置接口地址，请在设置中选择或填写当前接口')
       const prompt = String(payload.prompt || '').trim()
-      if (!prompt) throw new Error('请输入提示词')
+      // 图生视频允许只给图不写字（让画面自然动起来）；纯文生视频必须有提示词
+      if (!prompt && !payload.imageB64) throw new Error('请输入提示词')
       if (!model) throw new Error('请先为当前接口填写视频模型（设置 → 接口配置）')
 
-      const body = { model, prompt }
+      const body = { model, prompt: prompt || '让画面自然、流畅地动起来' }
       const size = payload.size || provider.videoSize
       if (size) body.size = size
       const seconds = payload.seconds || provider.videoSeconds
@@ -996,7 +997,7 @@ function createWindow() {
     minHeight: 660,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: '#0a0a0d',
+    backgroundColor: '#0e1116',
     title: 'RawPhotos',
     icon,
     frame: false,

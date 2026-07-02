@@ -168,7 +168,8 @@ function enqueue() {
     return
   }
   const text = prompt.value.trim()
-  if (!text) {
+  // 图生视频可以只给一张图不写字（让画面动起来）；其余场景提示词必填
+  if (!text && !(mode.value === 'video' && refImage.value)) {
     toast.error('请输入提示词')
     return
   }
@@ -417,7 +418,11 @@ function onKeydown(e) {
 
           <div class="bar-right">
             <span class="kbd">Ctrl ↵</span>
-            <button class="btn btn-primary generate-btn" :disabled="optimizing || !prompt.trim()" @click="enqueue">
+            <button
+              class="btn btn-primary generate-btn"
+              :disabled="optimizing || (!prompt.trim() && !(mode === 'video' && refImage))"
+              @click="enqueue"
+            >
               <Icon :name="mode === 'video' ? 'film' : 'sparkle'" :size="16" />
               <span>{{ running || queue.length ? '加入队列' : mode === 'video' ? '生成视频' : '生成图像' }}</span>
             </button>
@@ -552,7 +557,7 @@ function onKeydown(e) {
 }
 
 .composer {
-  padding: 14px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -709,7 +714,7 @@ function onKeydown(e) {
 .composer-bar {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
   row-gap: 12px;
   flex-wrap: wrap;
   padding-top: 12px;
@@ -751,7 +756,7 @@ function onKeydown(e) {
 .model-group {
   flex: 1;
   min-width: 200px;
-  max-width: 320px;
+  max-width: 360px;
 }
 .model-input {
   height: 34px;

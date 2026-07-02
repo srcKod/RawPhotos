@@ -135,7 +135,7 @@ src/renderer/src/
 
 ## 主题系统
 
-- `sky`(海盐·浅白天青，**默认**) / `green`(晴绿·浅白青绿) / `dark`(曜夜·柔和深色青绿) / `custom`(自定义)。清单在 `store.js` 的 `THEMES`（custom 不在数组、在 `THEME_IDS` 白名单）。
+- `sky`(海盐·浅白天青，**默认**) / `green`(晴绿·浅白青绿) / `dark`(曜夜·**2026-07 重做**：中性蓝灰深底 `#0e1116` + 柔蓝 accent `#6ea8fe`，原墨绿版用户嫌丑勿回退；主窗口 `backgroundColor` 同步 `#0e1116`) / `custom`(自定义)。清单在 `store.js` 的 `THEMES`（custom 不在数组、在 `THEME_IDS` 白名单）。
 - `:root` = green 基色；`sky`/`dark`/`custom` 用 `[data-theme]` 覆盖。`custom` 中性浅底 + `applyTheme` 按 `customColor` 内联注入 `--accent` 等（非 custom 时清除内联）。
 - 组件**只用 `var(--token)`**。新增主题=加 `[data-theme]` 块 + `THEMES` 一项。`main.js` 挂载前读 localStorage 防闪。
 - **`--on-accent`（2026-07 新增，勿回退）**：accent 底上的文字/图标色。dark 的 accent `#2dd4bf` 很亮，白字对比只有 ~1.8:1 → dark 用深字 `#062a25`；浅色主题 = `#fff`；custom 由 `applyTheme` 按取色感知亮度（luma>165 用深字）动态注入，且在 `ACCENT_VARS` 清除列表里。**凡是 accent/danger 实底上的文字一律写 `var(--on-accent, #fff)`，别再写死 `#fff`**（btn-primary/mode-tab/count-btn/send-btn/user 气泡/filter-tab/头像/logo/标题栏 mark 均已改）。同理 `.spin` 加载圈用 `currentColor`（原固定白色在浅色主题普通按钮里看不见）；GenerateView `.notice` 用 `var(--warn)` 体系（原固定浅黄在白底看不清）；LogsView kind 标签用中间亮度紫/蓝。
@@ -157,7 +157,7 @@ src/renderer/src/
 ## 待确认 / 已知假设
 
 - **视频接口**无统一标准：默认 `/videos/generations`（可在设置高级改），同步/异步都兼容；具体视频模型名需用户填。
-- **图生视频（2026-07）**：`grok-imagine-video-1.5` 等模型**只支持 image-to-video**，纯文字出片被中转拒（HTTP 400 `Text-to-video is not supported`）。生成页「＋ 参考图」在视频模式也显示，带图时 `video:generate` 的 body 加 `image: dataURL`（中转最通用约定；不同中转若要纯 b64/URL 再加分支）；未带图撞到该 400 时主进程把报错改写成中文操作指引（pushLog 仍记原文）。
+- **图生视频（2026-07）**：`grok-imagine-video-1.5` 等模型**只支持 image-to-video**，纯文字出片被中转拒（HTTP 400 `Text-to-video is not supported`）。生成页「＋ 参考图」在视频模式也显示，带图时 `video:generate` 的 body 加 `image: dataURL`（中转最通用约定；不同中转若要纯 b64/URL 再加分支）；未带图撞到该 400 时主进程把报错改写成中文操作指引（pushLog 仍记原文）。**只给图不写字也允许**（前端按钮/校验放行 + 主进程 prompt 兜底 "让画面自然、流畅地动起来"）——图生视频常见用法就是纯图驱动。
 - **图生图**默认 `/images/edits`（multipart，OpenAI/Grok 通用），路径可改。
 - **额度接口**各家不一，已试 `/usage` + `/dashboard/billing`；新中转格式不同需加分支。
 - **/models 可能列出账号组不支持的模型**（对话选到会 404）——属中转侧问题，提示用户换模型即可。

@@ -63,34 +63,34 @@
   --shadow-sm: 0 4px 16px rgba(15, 42, 70, 0.08);
 }
 
-/* 曜夜（柔和深色 + 青绿，护眼夜间） */
+/* 曜夜（2026-07 重做：中性蓝灰深底 + 柔蓝 accent，原墨绿版用户嫌丑已废弃） */
 [data-theme='dark'] {
-  --bg: #0d1311;
-  --bg-1: #111815;
-  --bg-2: #16201c;
-  --surface: #141d19;
-  --surface-2: #1b2722;
-  --surface-hover: #21302a;
-  --border: rgba(120, 220, 190, 0.1);
-  --border-2: rgba(120, 220, 190, 0.18);
-  --text: #e8f0ec;
-  --text-2: #9bb3aa;
-  --text-3: #5f7a70;
-  --accent: #2dd4bf;
-  --accent-hover: #4fe0cf;
-  --accent-soft: rgba(45, 212, 191, 0.14);
-  --accent-line: rgba(45, 212, 191, 0.4);
-  --ring: rgba(45, 212, 191, 0.4);
-  /* 曜夜的 accent 是亮青绿，上面放白字对比度只有 ~1.8:1 看不清，必须用深字 */
-  --on-accent: #062a25;
-  --success: #34d399;
+  --bg: #0e1116;
+  --bg-1: #131824;
+  --bg-2: #181e2b;
+  --surface: #161c28;
+  --surface-2: #1e2533;
+  --surface-hover: #252d3d;
+  --border: rgba(148, 168, 200, 0.12);
+  --border-2: rgba(148, 168, 200, 0.22);
+  --text: #e8ecf3;
+  --text-2: #a3aebf;
+  --text-3: #687283;
+  --accent: #6ea8fe;
+  --accent-hover: #8dbbff;
+  --accent-soft: rgba(110, 168, 254, 0.14);
+  --accent-line: rgba(110, 168, 254, 0.42);
+  --ring: rgba(110, 168, 254, 0.4);
+  /* 柔蓝 accent 偏亮，上面放白字对比不足，用深字 */
+  --on-accent: #0a1526;
+  --success: #4ade80;
   --danger: #fb7185;
   --warn: #fbbf24;
-  --shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
-  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.32);
-  --accent-glow: rgba(45, 212, 191, 0.3);
-  --scroll-thumb: rgba(120, 220, 190, 0.16);
-  --scroll-thumb-hover: rgba(120, 220, 190, 0.28);
+  --shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --accent-glow: rgba(110, 168, 254, 0.26);
+  --scroll-thumb: rgba(148, 168, 200, 0.18);
+  --scroll-thumb-hover: rgba(148, 168, 200, 0.3);
 }
 
 /* 自定义（中性浅色底，强调色由 applyTheme 按取色器内联注入 --accent 等） */

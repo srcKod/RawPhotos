@@ -3,7 +3,7 @@ import { reactive } from 'vue'
 export const THEMES = [
   { id: 'green', label: '晴绿', bg: '#f2f7f4', accent: '#0d9488' },
   { id: 'sky', label: '海盐', bg: '#eef4fb', accent: '#0ea5e9' },
-  { id: 'dark', label: '曜夜', bg: '#0d1311', accent: '#2dd4bf' }
+  { id: 'dark', label: '曜夜', bg: '#0e1116', accent: '#6ea8fe' }
 ]
 const THEME_IDS = new Set([...THEMES.map((t) => t.id), 'custom'])
 const ACCENT_VARS = ['--accent', '--accent-hover', '--accent-soft', '--accent-line', '--ring', '--accent-glow', '--on-accent']
