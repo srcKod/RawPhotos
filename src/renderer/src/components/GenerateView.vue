@@ -180,14 +180,12 @@ function enqueue() {
     model: model.value || undefined,
     size: (mode.value === 'video' ? vSize.value : iSize.value) || undefined,
     seconds: mode.value === 'video' ? vSeconds.value || undefined : undefined,
-    refImage:
-      mode.value === 'image' && refImage.value
-        ? { b64: refImage.value.b64, name: refImage.value.name }
-        : null,
+    // 图片=图生图（/images/edits）；视频=图生视频（grok-imagine 等模型必须带图）
+    refImage: refImage.value ? { b64: refImage.value.b64, name: refImage.value.name } : null,
     status: 'pending'
   })
   prompt.value = ''
-  if (mode.value === 'image') refImage.value = null
+  refImage.value = null
   runQueue()
 }
 
@@ -197,7 +195,9 @@ async function runTask(task) {
       prompt: task.prompt,
       model: task.model,
       size: task.size,
-      seconds: task.seconds
+      seconds: task.seconds,
+      imageB64: task.refImage?.b64,
+      imageName: task.refImage?.name
     })
     addResults(
       res.videos.map((v) => ({
@@ -317,7 +317,7 @@ function onKeydown(e) {
           </div>
         </div>
 
-        <div v-if="mode === 'image'" class="ref-row">
+        <div class="ref-row">
           <input ref="fileInput" type="file" accept="image/*" hidden @change="onPickRef" />
           <template v-if="refImage">
             <div class="ref-thumb">
@@ -327,12 +327,13 @@ function onKeydown(e) {
               </button>
             </div>
             <div class="ref-meta">
-              <span class="ref-tag">图生图</span>
+              <span class="ref-tag">{{ mode === 'video' ? '图生视频' : '图生图' }}</span>
               <span class="ref-name" :title="refImage.name">{{ refImage.name }}</span>
             </div>
           </template>
           <button v-else class="ref-add" @click="fileInput && fileInput.click()">
-            <Icon name="image" :size="15" /><span>＋ 参考图（图生图，可选）</span>
+            <Icon name="image" :size="15" />
+            <span>{{ mode === 'video' ? '＋ 参考图（图生视频；grok-imagine 等模型必须带图）' : '＋ 参考图（图生图，可选）' }}</span>
           </button>
         </div>
 

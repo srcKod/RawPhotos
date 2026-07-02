@@ -152,6 +152,7 @@ src/renderer/src/
 ## 待确认 / 已知假设
 
 - **视频接口**无统一标准：默认 `/videos/generations`（可在设置高级改），同步/异步都兼容；具体视频模型名需用户填。
+- **图生视频（2026-07）**：`grok-imagine-video-1.5` 等模型**只支持 image-to-video**，纯文字出片被中转拒（HTTP 400 `Text-to-video is not supported`）。生成页「＋ 参考图」在视频模式也显示，带图时 `video:generate` 的 body 加 `image: dataURL`（中转最通用约定；不同中转若要纯 b64/URL 再加分支）；未带图撞到该 400 时主进程把报错改写成中文操作指引（pushLog 仍记原文）。
 - **图生图**默认 `/images/edits`（multipart，OpenAI/Grok 通用），路径可改。
 - **额度接口**各家不一，已试 `/usage` + `/dashboard/billing`；新中转格式不同需加分支。
 - **/models 可能列出账号组不支持的模型**（对话选到会 404）——属中转侧问题，提示用户换模型即可。

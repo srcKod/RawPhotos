@@ -702,6 +702,11 @@ function registerIpc() {
           body.duration = n // 不同代理字段名不一，两个都带上更稳
         }
       }
+      // 图生视频：部分模型（如 grok-imagine-video-1.5）只支持 image-to-video，
+      // 纯文生视频会被拒（Text-to-video is not supported）。带参考图时以 dataURL 传 image 字段（中转最通用的约定）。
+      if (payload.imageB64) {
+        body.image = `data:${mimeOf(payload.imageName || 'image.png')};base64,${payload.imageB64}`
+      }
 
       const { json } = await requestJson(url, {
         method: 'POST',
@@ -722,6 +727,10 @@ function registerIpc() {
       return { videos, model, prompt }
     } catch (err) {
       pushLog({ kind: 'video', ok: false, provider: provider.name, model, url, status: err.status, durationMs: Date.now() - t0, message: err.message, detail: err.responseText })
+      // 常见 400：模型只支持图生视频（如 grok-imagine-video-1.5），给用户能照做的中文提示
+      if (/text-to-video is not supported/i.test(err.message || '')) {
+        err.message = `模型 ${model} 不支持纯文字出片（仅图生视频）：点提示词下方「＋ 参考图」上传一张图片再生成，或换支持文生视频的模型（如 sora 系）`
+      }
       throw err
     }
   })
