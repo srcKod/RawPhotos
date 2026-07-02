@@ -16,6 +16,7 @@
   --accent-soft: rgba(13, 148, 136, 0.12);
   --accent-line: rgba(13, 148, 136, 0.5);
   --ring: rgba(13, 148, 136, 0.4);
+  --on-accent: #ffffff; /* 强调色底上的文字/图标色（深色主题的亮 accent 上要用深字） */
   --success: #059669;
   --danger: #e11d48;
   --warn: #d97706;
@@ -52,6 +53,7 @@
   --accent-line: rgba(14, 165, 233, 0.5);
   --ring: rgba(14, 165, 233, 0.4);
   --accent-glow: rgba(14, 165, 233, 0.25);
+  --on-accent: #ffffff;
   --success: #059669;
   --danger: #e11d48;
   --warn: #d97706;
@@ -79,6 +81,8 @@
   --accent-soft: rgba(45, 212, 191, 0.14);
   --accent-line: rgba(45, 212, 191, 0.4);
   --ring: rgba(45, 212, 191, 0.4);
+  /* 曜夜的 accent 是亮青绿，上面放白字对比度只有 ~1.8:1 看不清，必须用深字 */
+  --on-accent: #062a25;
   --success: #34d399;
   --danger: #fb7185;
   --warn: #fbbf24;
@@ -108,6 +112,7 @@
   --accent-line: rgba(16, 185, 129, 0.5);
   --ring: rgba(16, 185, 129, 0.4);
   --accent-glow: rgba(16, 185, 129, 0.25);
+  --on-accent: #ffffff; /* custom 主题由 applyTheme 按取色亮度动态覆盖 */
   --success: #059669;
   --danger: #e11d48;
   --warn: #d97706;
@@ -210,7 +215,7 @@ h3 {
 .btn-primary {
   background: var(--accent);
   border-color: transparent;
-  color: #fff;
+  color: var(--on-accent, #fff);
   box-shadow: 0 6px 18px var(--accent-glow);
 }
 .btn-primary:hover {
@@ -319,8 +324,9 @@ h3 {
 .spin {
   width: 15px;
   height: 15px;
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  border-top-color: #fff;
+  /* 跟随所在按钮的文字色：普通按钮上也可见（原先固定白色在浅色主题的普通按钮里看不见） */
+  border: 2px solid color-mix(in srgb, currentColor 28%, transparent);
+  border-top-color: currentColor;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }

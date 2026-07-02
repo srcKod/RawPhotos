@@ -200,7 +200,7 @@ onMounted(refresh)
 }
 .filter-tab.active {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent, #fff);
 }
 .ft-n {
   font-size: 11px;

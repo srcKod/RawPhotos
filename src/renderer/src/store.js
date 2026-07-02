@@ -6,7 +6,7 @@ export const THEMES = [
   { id: 'dark', label: '曜夜', bg: '#0d1311', accent: '#2dd4bf' }
 ]
 const THEME_IDS = new Set([...THEMES.map((t) => t.id), 'custom'])
-const ACCENT_VARS = ['--accent', '--accent-hover', '--accent-soft', '--accent-line', '--ring', '--accent-glow']
+const ACCENT_VARS = ['--accent', '--accent-hover', '--accent-soft', '--accent-line', '--ring', '--accent-glow', '--on-accent']
 
 export const store = reactive({
   settings: {
@@ -53,6 +53,9 @@ export function applyTheme(theme) {
     el.style.setProperty('--accent-line', `rgba(${r}, ${g}, ${b}, 0.5)`)
     el.style.setProperty('--ring', `rgba(${r}, ${g}, ${b}, 0.4)`)
     el.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.28)`)
+    // 亮色 accent（如柠黄）上白字看不清，按感知亮度决定用白字还是深字
+    const luma = 0.299 * r + 0.587 * g + 0.114 * b
+    el.style.setProperty('--on-accent', luma > 165 ? '#15181f' : '#ffffff')
   } else {
     ACCENT_VARS.forEach((v) => el.style.removeProperty(v))
   }

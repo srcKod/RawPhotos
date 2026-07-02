@@ -129,7 +129,7 @@ const features = [
   border-radius: 18px;
   display: grid;
   place-items: center;
-  color: #fff;
+  color: var(--on-accent, #fff);
   background: linear-gradient(135deg, var(--accent), var(--accent-hover));
   box-shadow: 0 8px 22px var(--accent-glow);
 }

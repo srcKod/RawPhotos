@@ -78,6 +78,18 @@ function migrate(raw) {
     )
     s.providers = seeded
   }
+  // nexus 主站的 GPT 绘图接口（gpt-image-2，OpenAI images/generations 格式），
+  // 作为开箱预设；老用户配置里没有时也幂等补上，填 Key 即用。
+  if (!s.providers.some((p) => String(p.baseUrl || '').includes('nexus.apimf.top'))) {
+    s.providers.push(
+      makeProvider({
+        name: 'apimf 主站（GPT 绘图）',
+        baseUrl: 'https://nexus.apimf.top/v1',
+        imageModel: 'gpt-image-2',
+        imageSize: '1024x1024'
+      })
+    )
+  }
   // 字段补全 + 历史值纠正
   s.providers = s.providers.map((p) => {
     const fixed = makeProvider(p)

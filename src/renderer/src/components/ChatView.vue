@@ -565,7 +565,7 @@ onMounted(async () => {
   border-radius: var(--radius-sm);
   font-size: 13px;
   font-weight: 600;
-  color: #fff;
+  color: var(--on-accent, #fff);
   background: var(--accent);
   box-shadow: 0 4px 12px var(--accent-glow);
 }
@@ -715,7 +715,7 @@ onMounted(async () => {
   border-radius: 9px;
   display: grid;
   place-items: center;
-  color: #fff;
+  color: var(--on-accent, #fff);
 }
 .avatar.assistant {
   background: linear-gradient(135deg, var(--accent), var(--accent-hover));
@@ -740,7 +740,7 @@ onMounted(async () => {
 }
 .msg.user .bubble {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent, #fff);
   border-top-right-radius: 4px;
 }
 .bubble.error {
@@ -779,7 +779,8 @@ onMounted(async () => {
   font-size: 11.5px;
   padding: 3px 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
+  /* 跟随气泡文字色打底，深浅主题的 accent 气泡上都可见 */
+  background: color-mix(in srgb, currentColor 16%, transparent);
 }
 .msg.assistant .file-chip {
   background: var(--surface-2);
@@ -1017,7 +1018,7 @@ onMounted(async () => {
   border-radius: var(--radius-sm);
   display: grid;
   place-items: center;
-  color: #fff;
+  color: var(--on-accent, #fff);
   background: var(--accent);
   box-shadow: 0 4px 12px var(--accent-glow);
 }

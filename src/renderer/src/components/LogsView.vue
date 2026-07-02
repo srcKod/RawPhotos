@@ -12,6 +12,7 @@ const KIND = {
   image: '图片',
   video: '视频',
   optimize: '优化',
+  chat: '对话',
   test: '测试'
 }
 
@@ -89,7 +90,7 @@ onUnmounted(() => off && off())
     <header class="view-head">
       <div class="head-title">
         <h1>日志</h1>
-        <p class="sub">出图 / 出片 / 优化 / 测试的请求记录与错误详情 · 共 {{ logs.length }} 条</p>
+        <p class="sub">出图 / 出片 / 优化 / 对话 / 测试的请求记录与错误详情 · 共 {{ logs.length }} 条</p>
       </div>
       <div class="head-actions">
         <button class="btn btn-sm" :disabled="loading" @click="refresh">
@@ -230,13 +231,15 @@ onUnmounted(() => off && off())
   color: var(--text-2);
   flex-shrink: 0;
 }
+/* 中间亮度的紫/蓝，浅色与深色主题下都可读（原浅紫/浅蓝在白底上看不清） */
 .kind.image {
-  color: #c7bdff;
+  color: #7c5cf0;
 }
 .kind.video {
-  color: #8ab4ff;
+  color: #4f83e0;
 }
-.kind.optimize {
+.kind.optimize,
+.kind.chat {
   color: var(--accent);
 }
 .status {

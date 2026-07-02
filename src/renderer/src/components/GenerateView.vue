@@ -15,6 +15,7 @@ const count = ref(store.settings.defaultCount || 1)
 const model = ref('')
 const modelsList = ref([])
 const manualModel = ref(false)
+const iSize = ref('')
 const vSize = ref('')
 const vSeconds = ref('')
 const queue = ref([])
@@ -177,7 +178,7 @@ function enqueue() {
     prompt: text,
     n: count.value,
     model: model.value || undefined,
-    size: mode.value === 'video' ? vSize.value || undefined : undefined,
+    size: (mode.value === 'video' ? vSize.value : iSize.value) || undefined,
     seconds: mode.value === 'video' ? vSeconds.value || undefined : undefined,
     refImage:
       mode.value === 'image' && refImage.value
@@ -217,10 +218,11 @@ async function runTask(task) {
           prompt: task.prompt,
           n: task.n,
           model: task.model,
+          size: task.size,
           imageB64: task.refImage.b64,
           imageName: task.refImage.name
         })
-      : await window.api.generateImage({ prompt: task.prompt, n: task.n, model: task.model })
+      : await window.api.generateImage({ prompt: task.prompt, n: task.n, model: task.model, size: task.size })
     addResults(
       res.images.map((im) => ({
         id: nextId(),
@@ -348,20 +350,32 @@ function onKeydown(e) {
         </div>
 
         <div class="composer-bar">
-          <div v-if="mode === 'image'" class="ctl-group">
-            <span class="ctl-label">数量</span>
-            <div class="count-group">
-              <button
-                v-for="c in countOptions"
-                :key="c"
-                class="count-btn"
-                :class="{ active: count === c }"
-                @click="count = c"
-              >
-                {{ c }}
-              </button>
+          <template v-if="mode === 'image'">
+            <div class="ctl-group">
+              <span class="ctl-label">数量</span>
+              <div class="count-group">
+                <button
+                  v-for="c in countOptions"
+                  :key="c"
+                  class="count-btn"
+                  :class="{ active: count === c }"
+                  @click="count = c"
+                >
+                  {{ c }}
+                </button>
+              </div>
             </div>
-          </div>
+            <div class="ctl-group">
+              <span class="ctl-label">尺寸</span>
+              <input
+                v-model="iSize"
+                class="input mini-input"
+                :placeholder="provider?.imageSize || '1024x1024'"
+                spellcheck="false"
+                title="留空用接口默认；GPT 绘图支持 1024x1024 / 1536x1024 / 1024x1536 / auto"
+              />
+            </div>
+          </template>
 
           <template v-else>
             <div class="ctl-group">
@@ -533,7 +547,7 @@ function onKeydown(e) {
 }
 .mode-tab.active {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent, #fff);
 }
 
 .composer {
@@ -680,7 +694,7 @@ function onKeydown(e) {
 }
 .opt-btn:hover:not(:disabled) {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent, #fff);
 }
 .opt-btn:disabled {
   opacity: 0.5;
@@ -731,7 +745,7 @@ function onKeydown(e) {
 }
 .count-btn.active {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent, #fff);
 }
 .model-group {
   flex: 1;
@@ -791,9 +805,10 @@ function onKeydown(e) {
   align-items: center;
   gap: 10px;
   font-size: 13px;
-  color: #f5c264;
-  border: 1px solid rgba(245, 166, 35, 0.25);
-  background: rgba(245, 166, 35, 0.07);
+  /* 用主题的警示色：原先固定浅黄 #f5c264 在浅色主题的白底上几乎看不清 */
+  color: var(--warn);
+  border: 1px solid color-mix(in srgb, var(--warn) 32%, transparent);
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
   border-radius: var(--radius);
 }
 .notice .btn {

@@ -89,7 +89,7 @@ src/renderer/src/
 }
 ```
 
-- `migrate()`（主进程）：旧扁平配置→provider；补全字段；非法 theme→sky；历史「本地 CLIProxyAPI」名→「中转接口」；`grok-2-image`→`grok-imagine-image`；空 videoModel→`grok-imagine-video`。
+- `migrate()`（主进程）：旧扁平配置→provider；补全字段；非法 theme→sky；历史「本地 CLIProxyAPI」名→「中转接口」；`grok-2-image`→`grok-imagine-image`；空 videoModel→`grok-imagine-video`；**幂等补 nexus 预设**（providers 里没有 `nexus.apimf.top` 就 push「apimf 主站（GPT 绘图）」`https://nexus.apimf.top/v1` + `gpt-image-2` + 1024x1024，老用户升级也能看到）。
 - 改设置统一 `settings:set`（renderer 传完整字段，主进程 `writeSettings` 合并+再 migrate）。`persistSettings(patch)` 只传变化字段，其余保留。
 
 ## IPC 一览（preload → 主进程）
@@ -138,6 +138,7 @@ src/renderer/src/
 - `sky`(海盐·浅白天青，**默认**) / `green`(晴绿·浅白青绿) / `dark`(曜夜·柔和深色青绿) / `custom`(自定义)。清单在 `store.js` 的 `THEMES`（custom 不在数组、在 `THEME_IDS` 白名单）。
 - `:root` = green 基色；`sky`/`dark`/`custom` 用 `[data-theme]` 覆盖。`custom` 中性浅底 + `applyTheme` 按 `customColor` 内联注入 `--accent` 等（非 custom 时清除内联）。
 - 组件**只用 `var(--token)`**。新增主题=加 `[data-theme]` 块 + `THEMES` 一项。`main.js` 挂载前读 localStorage 防闪。
+- **`--on-accent`（2026-07 新增，勿回退）**：accent 底上的文字/图标色。dark 的 accent `#2dd4bf` 很亮，白字对比只有 ~1.8:1 → dark 用深字 `#062a25`；浅色主题 = `#fff`；custom 由 `applyTheme` 按取色感知亮度（luma>165 用深字）动态注入，且在 `ACCENT_VARS` 清除列表里。**凡是 accent/danger 实底上的文字一律写 `var(--on-accent, #fff)`，别再写死 `#fff`**（btn-primary/mode-tab/count-btn/send-btn/user 气泡/filter-tab/头像/logo/标题栏 mark 均已改）。同理 `.spin` 加载圈用 `currentColor`（原固定白色在浅色主题普通按钮里看不见）；GenerateView `.notice` 用 `var(--warn)` 体系（原固定浅黄在白底看不清）；LogsView kind 标签用中间亮度紫/蓝。
 
 ## 窗口 / 托盘 / 退出
 
@@ -155,3 +156,4 @@ src/renderer/src/
 - **额度接口**各家不一，已试 `/usage` + `/dashboard/billing`；新中转格式不同需加分支。
 - **/models 可能列出账号组不支持的模型**（对话选到会 404）——属中转侧问题，提示用户换模型即可。
 - 用户参考接口：`POST https://kiro.apimf.top/v1/images/generations { model:"flux", ... }`；额度 `GET {baseUrl}/v1/usage`（remaining/balance/unit）。
+- **nexus 主站 GPT 绘图**（2026-07 对接）：`POST https://nexus.apimf.top/v1/images/generations { model:"gpt-image-2", prompt, size:"1024x1024", response_format:"b64_json" }`，Bearer 鉴权，返回 `data[].b64_json`——与现有 `image:generate` 完全同构，零代码适配，migrate 已做成开箱预设。gpt-image 系支持尺寸 `1024x1024 / 1536x1024 / 1024x1536 / auto`（设置页 sizeOptions 已含；生成页图片模式有「尺寸」临时输入框，留空用接口默认）。

@@ -27,7 +27,7 @@ const navItems = [
 
 const configured = computed(() => isConfigured())
 const prov = computed(() => activeProvider())
-const currentTheme = computed(() => store.settings.theme || 'dark')
+const currentTheme = computed(() => store.settings.theme || 'sky')
 
 const quit = () => window.api.quitApp()
 const hideToTray = () => window.api.window.close()
@@ -296,7 +296,7 @@ onUnmounted(() => {
   border-radius: 7px;
   display: grid;
   place-items: center;
-  color: #fff;
+  color: var(--on-accent, #fff);
   background: var(--accent);
 }
 .bal-text {

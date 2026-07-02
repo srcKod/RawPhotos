@@ -15,8 +15,11 @@ const countOptions = [
 const sizeOptions = [
   { value: '', label: '（默认 / 不指定）' },
   { value: '1024x1024', label: '1024 × 1024（方）' },
-  { value: '1024x1792', label: '1024 × 1792（竖）' },
-  { value: '1792x1024', label: '1792 × 1024（横）' },
+  { value: '1536x1024', label: '1536 × 1024（横 · GPT 绘图）' },
+  { value: '1024x1536', label: '1024 × 1536（竖 · GPT 绘图）' },
+  { value: 'auto', label: 'auto（GPT 绘图自适应）' },
+  { value: '1024x1792', label: '1024 × 1792（竖 · DALL·E）' },
+  { value: '1792x1024', label: '1792 × 1024（横 · DALL·E）' },
   { value: '768x768', label: '768 × 768' },
   { value: '512x512', label: '512 × 512' },
   { value: '1280x720', label: '1280 × 720' },
@@ -37,7 +40,7 @@ function pickPreset(c) {
   setCustomColor(c)
 }
 
-const currentTheme = computed(() => store.settings.theme || 'dark')
+const currentTheme = computed(() => store.settings.theme || 'sky')
 const providerModels = ref([])
 const modelsLoading = ref(false)
 const manual = reactive({ imageModel: false, videoModel: false, optimizeModel: false })
@@ -829,7 +832,8 @@ code {
   padding: 1px 6px;
   border-radius: 5px;
   font-size: 12px;
-  color: #8ab4ff;
+  /* 原固定浅蓝 #8ab4ff 在浅色主题的白底上看不清，改随主题强调色 */
+  color: var(--accent);
   font-family: 'Cascadia Code', Consolas, monospace;
 }
 .theme-grid {

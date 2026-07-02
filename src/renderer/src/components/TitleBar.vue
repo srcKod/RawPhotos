@@ -68,7 +68,7 @@ const close = () => emit('close-request')
   background: linear-gradient(135deg, var(--accent), var(--accent-hover));
   display: grid;
   place-items: center;
-  color: #fff;
+  color: var(--on-accent, #fff);
   box-shadow: 0 2px 8px var(--accent-glow);
 }
 .tb-name {
