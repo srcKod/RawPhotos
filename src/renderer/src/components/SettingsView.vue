@@ -57,7 +57,8 @@ function blankProvider() {
     videoSeconds: '',
     editPath: '/images/edits',
     videoPath: '/videos/generations',
-    videoPollPath: ''
+    videoPollPath: '',
+    videoApi: ''
   }
 }
 
@@ -97,6 +98,12 @@ const videoOptions = computed(() => [
 const optimizeOptions = computed(() => [
   { value: '', label: t('settings.unselected') },
   ...optionsFor(selected.value?.optimizeModel)
+])
+// Video API style adapter: '' = legacy /videos/generations proxies, 'openai-videos' = OpenAI
+// Videos-compatible APIs (POST /videos, mode/first_frame body, video_id retrieval, metadata.url)
+const videoApiOptions = computed(() => [
+  { value: '', label: t('settings.video_api_default') },
+  { value: 'openai-videos', label: t('settings.video_api_openai') }
 ])
 
 // Silently fetch the selected provider's model list on entry/switch to fill the dropdown.
@@ -144,6 +151,19 @@ watch(selectedId, () => {
   manual.optimizeModel = false
   loadModels()
 })
+
+// Keep the video endpoint path consistent when the API style changes: switching to
+// OpenAI Videos clears the legacy /videos/generations default (the main process then
+// creates tasks at POST /videos); switching back restores it if the field was left empty.
+watch(
+  () => selected.value && selected.value.videoApi,
+  (api, prev) => {
+    const p = selected.value
+    if (!p) return
+    if (api === 'openai-videos' && p.videoPath === '/videos/generations') p.videoPath = ''
+    if (prev === 'openai-videos' && !p.videoPath) p.videoPath = '/videos/generations'
+  }
+)
 
 function cleanError(msg) {
   return String(msg || t('settings.operation_failed')).replace(/^Error invoking remote method '[^']+':\s*Error:\s*/, '')
@@ -414,14 +434,19 @@ async function openDir() {
           </button>
           <div v-if="showAdvanced" class="grid-2 adv">
             <div class="field">
-              <label>{{ t('settings.image_model') }}</label>
+              <label>{{ t('settings.edit_path') }}</label>
               <input v-model="selected.editPath" class="input" placeholder="/images/edits" spellcheck="false" />
               <span class="hint">{{ t('settings.image_hint') }} <code>/images/edits</code>, {{ t('settings.image_hint2') }}</span>
             </div>
             <div class="field">
-              <label>{{ t('settings.video_model') }}</label>
+              <label>{{ t('settings.video_path') }}</label>
               <input v-model="selected.videoPath" class="input" placeholder="/videos/generations" spellcheck="false" />
               <span class="hint">{{ t('settings.video_hint') }}</span>
+            </div>
+            <div class="field">
+              <label>{{ t('settings.video_api') }}</label>
+              <Dropdown v-model="selected.videoApi" :options="videoApiOptions" />
+              <span class="hint">{{ t('settings.video_api_hint') }}</span>
             </div>
             <div class="field">
               <label>{{ t('settings.async_path') }}</label>

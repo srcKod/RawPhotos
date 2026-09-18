@@ -26,7 +26,9 @@ function makeProvider(patch = {}) {
     // Advanced: endpoint paths are adjustable per platform (most OpenAI-compatible proxies need no change)
     editPath: patch.editPath || '/images/edits',
     videoPath: patch.videoPath || '/videos/generations',
-    videoPollPath: patch.videoPollPath || ''
+    videoPollPath: patch.videoPollPath || '',
+    // '' = legacy /videos/generations style; 'openai-videos' = OpenAI Videos API (POST /videos + video_id, e.g. Agnes)
+    videoApi: patch.videoApi || ''
   }
 }
 
@@ -258,6 +260,9 @@ function pickMediaItems(json) {
     if (json?.video && typeof json.video.url === 'string') push(null, json.video.url)
     if (json?.data && typeof json.data.url === 'string') push(null, json.data.url)
     if (json?.result && typeof json.result.url === 'string') push(null, json.result.url)
+    // OpenAI Videos style (e.g. Agnes): the finished media URL lives in metadata.url;
+    // an empty value before completion is ignored by the truthy check in push()
+    if (json?.metadata && typeof json.metadata.url === 'string') push(null, json.metadata.url)
     if (typeof json?.output === 'string') push(null, json.output)
     if (Array.isArray(json?.output)) {
       json.output.forEach((u) => typeof u === 'string' && push(null, u))
@@ -696,7 +701,9 @@ function registerIpc() {
     const provider = activeProvider(settings)
     const baseUrl = normalizeBaseUrl(provider.baseUrl)
     const model = payload.model || provider.videoModel
-    const path = normalizeBaseUrl(provider.videoPath) || '/videos/generations'
+    // OpenAI Videos APIs (videoApi === 'openai-videos', e.g. Agnes) create tasks at POST /videos
+    const oaVideos = provider.videoApi === 'openai-videos'
+    const path = normalizeBaseUrl(provider.videoPath) || (oaVideos ? '/videos' : '/videos/generations')
     const url = `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`
     const t0 = Date.now()
     try {
@@ -708,13 +715,23 @@ function registerIpc() {
 
       const body = { model, prompt: prompt || m('main.default_video_prompt') }
       const size = payload.size || provider.videoSize
-      if (size) body.size = size
       const seconds = payload.seconds || provider.videoSeconds
-      if (seconds) {
+      if (oaVideos) {
+        // OpenAI Videos spec: mode is required (text / keyframe / reference), seconds is a
+        // string like "5", size is a resolution tier — pixel dimensions are rejected with 400.
+        body.mode = payload.imageB64 ? 'keyframe' : 'text'
         const n = parseInt(seconds, 10)
-        if (n) {
-          body.seconds = n
-          body.duration = n // different proxies use different field names; sending both is safer
+        if (n) body.seconds = String(n)
+        const tier = String(size || '').trim().toUpperCase()
+        if (['720P', '1080P', '1K', '2K'].includes(tier)) body.size = tier
+      } else {
+        if (size) body.size = size
+        if (seconds) {
+          const n = parseInt(seconds, 10)
+          if (n) {
+            body.seconds = n
+            body.duration = n // different proxies use different field names; sending both is safer
+          }
         }
       }
       // Image-to-video: some models (e.g. grok-imagine-video-1.5) only support image-to-video and
@@ -724,6 +741,12 @@ function registerIpc() {
       let bodies = [body]
       if (payload.imageB64) {
         const dataUrl = `data:${mimeOf(payload.imageName || 'image.png')};base64,${payload.imageB64}`
+        if (oaVideos) {
+          // OpenAI Videos keyframe mode: the image becomes first_frame. Note Agnes requires a
+          // publicly reachable URL for reference media — a data: URL may be rejected (the API
+          // error message is surfaced as-is).
+          bodies = [{ ...body, first_frame: dataUrl }]
+        } else {
         // nexus (Rust serde) is known to report image: invalid type: string, expecting an object/array — try the object form first
         bodies = [
           { ...body, image: { url: dataUrl } },
@@ -732,6 +755,7 @@ function registerIpc() {
           { ...body, image_url: dataUrl },
           { ...body, image: dataUrl }
         ]
+        }
       }
       let json = null
       let lastErr = null
@@ -757,8 +781,11 @@ function registerIpc() {
 
       let videos = pickMediaItems(json)
       if (!videos.length) {
+        // OpenAI Videos create responses carry both id/task_id and video_id; only video_id is
+        // valid for retrieval, so prefer it. Providers without video_id are unaffected.
         const jobId =
-          json.id || json.task_id || json.request_id || json?.data?.id || json?.data?.task_id
+          json.video_id || json.id || json.task_id || json.request_id ||
+          json?.data?.video_id || json?.data?.id || json?.data?.task_id
         if (!jobId) throw new Error(m('main.err_no_video_data'))
         videos = await pollVideoJob(baseUrl, provider, jobId)
       }
