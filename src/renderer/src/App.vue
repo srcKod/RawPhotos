@@ -158,7 +158,7 @@ onUnmounted(() => {
             <div class="bal-text">
               <div class="bal-num">{{ money(balance.remaining) }}</div>
               <div class="bal-sub">
-                {{ t('quota.remaining') }}<template v-if="balance.total != null"> · {{ t('quota.total') }} {{ money(balance.total) }}</template>
+                {{ t('quota.remaining') }}<template v-if="balance.total != null"> / {{ t('quota.total') }} {{ money(balance.total) }}</template>
               </div>
             </div>
           </div>
