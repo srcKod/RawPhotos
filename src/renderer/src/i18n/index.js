@@ -5,7 +5,7 @@ import zh from './languages/zh.json'
 // Available languages
 export const SUPPORTED_LOCALES = [
   { code: 'en', name: 'English' },
-  { code: 'zh', name: '中文' }
+  { code: 'zh', name: 'Chinese' }
 ]
 
 // Load messages for a specific locale

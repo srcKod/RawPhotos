@@ -1,9 +1,11 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { ref, onMounted } from 'vue'
 import { toast } from '../composables/useToast'
 import Icon from './Icon.vue'
 
-const SITE = 'https://nexus.apimf.top'
+const { t } = useI18n()
+const SITE = "https://nexus.apimf.top"
 const QQ_GROUP = '1105572960'
 const version = ref('')
 
@@ -22,19 +24,19 @@ function openSite() {
 async function copyGroup() {
   try {
     await navigator.clipboard.writeText(QQ_GROUP)
-    toast.success('群号已复制：' + QQ_GROUP)
+    toast.success(t('about.qq_copy') + QQ_GROUP)
   } catch {
-    toast.error('复制失败')
+    toast.error(t('about.copy_failed'))
   }
 }
 
 const features = [
-  { icon: 'image', text: '文生图：多张并发、可选尺寸' },
-  { icon: 'film', text: '文生视频：同步直出 / 异步轮询' },
-  { icon: 'sparkle', text: 'AI 提示词优化（GPT / Claude / Grok 通用）' },
-  { icon: 'plug', text: '多中转接口配置，一键切换' },
-  { icon: 'logs', text: '运行日志，错误一目了然' },
-  { icon: 'palette', text: '多主题切换，自动记忆' }
+  { icon: 'image', text: t('about.features.txt2img') },
+  { icon: 'film', text: t('about.features.txt2video') },
+  { icon: 'sparkle', text: t('about.features.optimize') },
+  { icon: 'plug', text: t('about.features.multi_provider') },
+  { icon: 'logs', text: t('about.features.logs') },
+  { icon: 'palette', text: t('about.features.themes') }
 ]
 </script>
 
@@ -42,8 +44,8 @@ const features = [
   <div class="view">
     <header class="view-head">
       <div class="head-title">
-        <h1>关于</h1>
-        <p class="sub">RawPhotos · AI 文生图 / 文生视频桌面应用</p>
+        <h1>{{ t('about.title') }}</h1>
+        <p class="sub">{{ t('about.app_name') }} · AI Text-to-Image / Text-to-Video Desktop App</p>
       </div>
     </header>
 
@@ -55,7 +57,7 @@ const features = [
             <h2>RawPhotos</h2>
             <span v-if="version" class="ver">v{{ version }}</span>
           </div>
-          <p class="hero-desc">基于 Electron + Vue 3 的桌面创作工具，通过 OpenAI 兼容中转接口调用 flux / Grok 等模型出图、出片。</p>
+          <p class="hero-desc">{{ t('about.app_desc') }}</p>
           <button class="btn btn-sm site-btn" @click="openSite">
             <Icon name="link" :size="14" /><span>{{ SITE }}</span>
           </button>
@@ -66,17 +68,17 @@ const features = [
         <div class="group-left">
           <div class="group-icon"><Icon name="group" :size="22" /></div>
           <div class="group-text">
-            <div class="group-label">交流 / 反馈 QQ 群</div>
+            <div class="group-label">{{ t('about.qq_group') }}</div>
             <div class="group-num">{{ QQ_GROUP }}</div>
           </div>
         </div>
         <button class="btn btn-primary copy-group" @click="copyGroup">
-          <Icon name="copy" :size="15" /><span>复制群号</span>
+          <Icon name="copy" :size="15" /><span>{{ t('about.copy_group') }}</span>
         </button>
       </section>
 
       <section class="card feat-card">
-        <h3 class="feat-title">功能一览</h3>
+        <h3 class="feat-title">{{ t('about.features_title') }}</h3>
         <div class="feat-grid">
           <div v-for="f in features" :key="f.text" class="feat-item">
             <span class="feat-ic"><Icon :name="f.icon" :size="16" /></span>
@@ -85,7 +87,7 @@ const features = [
         </div>
       </section>
 
-      <p class="foot-note">© RawPhotos · 仅供学习与个人创作使用，请遵守所用模型 / 接口的使用条款。</p>
+      <p class="foot-note">{{ t('about.copyright') }}</p>
     </div>
   </div>
 </template>

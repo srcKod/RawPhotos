@@ -1,8 +1,10 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 defineProps({
   src: { type: String, default: '' },
   kind: { type: String, default: 'image' }
 })
+const { t } = useI18n()
 const emit = defineEmits(['close'])
 </script>
 
@@ -10,7 +12,7 @@ const emit = defineEmits(['close'])
   <Transition name="fade">
     <div v-if="src" class="lightbox" @click.self="emit('close')">
       <video v-if="kind === 'video'" :src="src" class="media" controls autoplay loop @click.stop></video>
-      <img v-else :src="src" class="media" alt="预览" />
+      <img v-else :src="src" class="media" alt="Preview" />
       <button class="close" @click="emit('close')">✕</button>
     </div>
   </Transition>

@@ -1,7 +1,9 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { ref, onMounted, onUnmounted } from 'vue'
 import Icon from './Icon.vue'
 
+const { t } = useI18n()
 const maximized = ref(false)
 let off = null
 
@@ -28,17 +30,17 @@ const close = () => emit('close-request')
     <div class="tb-brand">
       <div class="tb-mark"><Icon name="sparkle" :size="13" /></div>
       <span class="tb-name">RawPhotos</span>
-      <button class="tb-tag" title="打开网站" @click="openSite">https://nexus.apimf.top</button>
+      <button class="tb-tag" :title="t('titlebar.open_site')" @click="openSite">https://nexus.apimf.top</button>
     </div>
 
     <div class="tb-drag"></div>
 
     <div class="tb-controls">
-      <button class="tb-btn" title="最小化" @click="min"><Icon name="win-min" :size="15" /></button>
-      <button class="tb-btn" :title="maximized ? '还原' : '最大化'" @click="max">
+      <button class="tb-btn" :title="t('titlebar.minimize')" @click="min"><Icon name="win-min" :size="15" /></button>
+      <button class="tb-btn" :title="maximized ? t('titlebar.restore') : t('titlebar.maximize')" @click="max">
         <Icon :name="maximized ? 'win-restore' : 'win-max'" :size="14" />
       </button>
-      <button class="tb-btn tb-close" title="关闭（收起到托盘 / 退出）" @click="close">
+      <button class="tb-btn tb-close" :title="t('titlebar.close')" @click="close">
         <Icon name="win-close" :size="15" />
       </button>
     </div>

@@ -1,7 +1,0 @@
-{
-    "i18n-ally.localesPaths": [
-        "src/renderer/src/i18n",
-        "src/renderer/src/i18n/languages"
-    ],
-    "i18n-ally.extract.autoDetect": true
-}

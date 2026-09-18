@@ -1,7 +1,9 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { toasts, dismissToast } from '../composables/useToast'
 import Icon from './Icon.vue'
 
+const { t } = useI18n()
 const iconFor = (type) => (type === 'success' ? 'check' : type === 'error' ? 'alert' : 'sparkle')
 </script>
 

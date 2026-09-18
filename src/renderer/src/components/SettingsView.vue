@@ -1,25 +1,23 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { reactive, ref, computed, onMounted, watch } from 'vue'
 import { store, persistSettings, setTheme, setCustomColor, applyTheme, THEMES } from '../store'
 import { toast } from '../composables/useToast'
 import Icon from './Icon.vue'
 import Dropdown from './Dropdown.vue'
 
-const countOptions = [
-  { value: 1, label: '1 张' },
-  { value: 2, label: '2 张' },
-  { value: 3, label: '3 张' },
-  { value: 4, label: '4 张' }
-]
-
+const { t } = useI18n()
+const countOptions = computed(() =>
+  [1, 2, 3, 4].map((n) => ({ value: n, label: `${n} ${t('settings.count_suffix')}` }))
+)
 const sizeOptions = [
-  { value: '', label: '（默认 / 不指定）' },
-  { value: '1024x1024', label: '1024 × 1024（方）' },
-  { value: '1536x1024', label: '1536 × 1024（横 · GPT 绘图）' },
-  { value: '1024x1536', label: '1024 × 1536（竖 · GPT 绘图）' },
-  { value: 'auto', label: 'auto（GPT 绘图自适应）' },
-  { value: '1024x1792', label: '1024 × 1792（竖 · DALL·E）' },
-  { value: '1792x1024', label: '1792 × 1024（横 · DALL·E）' },
+  { value: '', label: t('settings.optional') },
+  { value: '1024x1024', label: '1024 × 1024' },
+  { value: '1536x1024', label: '1536 × 1024 (GPT)' },
+  { value: '1024x1536', label: '1024 × 1536 (GPT)' },
+  { value: 'auto', label: 'auto (GPT)' },
+  { value: '1024x1792', label: '1024 × 1792 (DALL·E)' },
+  { value: '1792x1024', label: '1792 × 1024 (DALL·E)' },
   { value: '768x768', label: '768 × 768' },
   { value: '512x512', label: '512 × 512' },
   { value: '1280x720', label: '1280 × 720' },
@@ -48,7 +46,7 @@ const manual = reactive({ imageModel: false, videoModel: false, optimizeModel: f
 function blankProvider() {
   return {
     id: `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    name: '新接口',
+    name: t('settings.add_interface'),
     baseUrl: '',
     apiKey: '',
     imageModel: '',
@@ -88,15 +86,15 @@ function optionsFor(current) {
 }
 
 const imageOptions = computed(() => [
-  { value: '', label: '（未选择）' },
+  { value: '', label: t('settings.unselected') },
   ...optionsFor(selected.value?.imageModel)
 ])
 const videoOptions = computed(() => [
-  { value: '', label: '（不支持出片 / 未选择）' },
+  { value: '', label: t('settings.unselected') },
   ...optionsFor(selected.value?.videoModel)
 ])
 const optimizeOptions = computed(() => [
-  { value: '', label: '（未选择，留空则不可用）' },
+  { value: '', label: t('settings.unselected') },
   ...optionsFor(selected.value?.optimizeModel)
 ])
 
@@ -146,7 +144,7 @@ watch(selectedId, () => {
 })
 
 function cleanError(msg) {
-  return String(msg || '操作失败').replace(/^Error invoking remote method '[^']+':\s*Error:\s*/, '')
+  return String(msg || t('settings.operation_failed')).replace(/^Error invoking remote method '[^']+':\s*Error:\s*/, '')
 }
 
 function addProvider() {
@@ -158,7 +156,7 @@ function addProvider() {
 
 function removeProvider(id) {
   if (form.providers.length <= 1) {
-    toast.error('至少保留一个接口')
+    toast.error(t('settings.delete_confirm'))
     return
   }
   const idx = form.providers.findIndex((p) => p.id === id)
@@ -186,9 +184,9 @@ async function setActive(id) {
       saveDir: form.saveDir
     })
     hydrate()
-    toast.success('已设为当前接口')
+    toast.success(t('settings.set_current'))
   } catch (err) {
-    toast.error(`设置失败：${err.message}`)
+    toast.error(t('settings.test_error') + ': ' + err.message)
   } finally {
     saving.value = false
   }
@@ -196,7 +194,7 @@ async function setActive(id) {
 
 async function save() {
   for (const p of form.providers) {
-    if (!String(p.name || '').trim()) p.name = '未命名接口'
+    if (!String(p.name || '').trim()) p.name = t('settings.unnamed_interface')
   }
   saving.value = true
   try {
@@ -209,9 +207,9 @@ async function save() {
       alertThreshold: Number(form.alertThreshold) || 0
     })
     hydrate()
-    toast.success('设置已保存')
+    toast.success(t('settings.settings_saved'))
   } catch (err) {
-    toast.error(`保存失败：${err.message}`)
+    toast.error(t('toast.save_failed') + ': ' + err.message)
   } finally {
     saving.value = false
   }
@@ -228,10 +226,10 @@ async function test() {
     })
     testResult.value = { ok: true, models: res.models || [], status: res.status }
     providerModels.value = res.models || []
-    toast.success('连接成功')
+    toast.success(t('settings.connection_success'))
   } catch (err) {
     testResult.value = { ok: false, message: cleanError(err.message) }
-    toast.error('连接失败')
+    toast.error(t('settings.connection_failed'))
   } finally {
     testing.value = false
   }
@@ -240,9 +238,9 @@ async function test() {
 async function copyModel(m) {
   try {
     await navigator.clipboard.writeText(m)
-    toast.success(`已复制：${m}`)
+    toast.success(t('toast.copied'))
   } catch {
-    toast.error('复制失败')
+    toast.error(t('toast.copy_failed'))
   }
 }
 
@@ -253,7 +251,7 @@ async function pickDir() {
 
 async function openDir() {
   const dir = await window.api.openPath(form.saveDir || '')
-  toast.info(`已打开 ${dir}`)
+  toast.info(t('toast.opened') + ' ' + dir)
 }
 </script>
 
@@ -261,13 +259,13 @@ async function openDir() {
   <div class="view">
     <header class="view-head">
       <div class="head-title">
-        <h1>设置</h1>
-        <p class="sub">管理多个接口（OpenAI 兼容），随时切换出图 / 出片</p>
+        <h1>{{ t('settings.title') }}</h1>
+        <p class="sub">{{ t('settings.interface_config') }}</p>
       </div>
       <button class="btn btn-primary save-top" :disabled="saving" @click="save">
         <span v-if="saving" class="spin"></span>
         <Icon v-else name="check" :size="15" />
-        <span>保存设置</span>
+        <span>{{ t('settings.save') }}</span>
       </button>
     </header>
 
@@ -275,9 +273,9 @@ async function openDir() {
       <section class="card block">
         <div class="block-head">
           <Icon name="plug" :size="16" />
-          <h2>接口配置</h2>
+          <h2>{{ t('settings.interface_config') }}</h2>
           <button class="btn btn-sm add-btn" @click="addProvider">
-            <Icon name="plus" :size="15" /><span>新增接口</span>
+            <Icon name="plus" :size="15" /><span>{{ t("settings.add_interface") }}</span>
           </button>
         </div>
 
@@ -292,19 +290,19 @@ async function openDir() {
             <span
               class="pick-active"
               :class="{ on: p.id === form.activeProviderId }"
-              title="设为当前使用"
+              :title="t('settings.set_current')"
               @click.stop="setActive(p.id)"
             >
               <Icon v-if="p.id === form.activeProviderId" name="check" :size="12" />
             </span>
             <span class="p-main">
-              <span class="p-name">{{ p.name || '未命名接口' }}</span>
-              <span class="p-url">{{ p.baseUrl || '未填写地址' }}</span>
+              <span class="p-name">{{ p.name || t('settings.unnamed_interface') }}</span>
+              <span class="p-url">{{ p.baseUrl || t('settings.not_configured') }}</span>
             </span>
             <span class="p-tags">
               <span v-if="p.imageModel" class="p-tag"><Icon name="image" :size="11" />{{ p.imageModel }}</span>
               <span v-if="p.videoModel" class="p-tag"><Icon name="film" :size="11" />{{ p.videoModel }}</span>
-              <span v-if="p.id === form.activeProviderId" class="p-tag cur">当前</span>
+              <span v-if="p.id === form.activeProviderId" class="p-tag cur">{{ t('settings.current_interface') }}</span>
             </span>
           </button>
         </div>
@@ -312,11 +310,11 @@ async function openDir() {
         <div v-if="selected" class="editor">
           <div class="grid-2">
             <div class="field">
-              <label>接口名称</label>
-              <input v-model="selected.name" class="input" placeholder="例如：本地代理 / apimf" spellcheck="false" />
+              <label>{{ t('settings.interface_name') }}</label>
+              <input v-model="selected.name" class="input" :placeholder="t('settings.interface_placeholder')" spellcheck="false" />
             </div>
             <div class="field">
-              <label>Base URL（以 /v1 结尾）</label>
+              <label>{{ t('settings.base_url') }} (/v1)</label>
               <input v-model="selected.baseUrl" class="input" placeholder="https://kiro.apimf.top/v1" spellcheck="false" />
             </div>
           </div>
@@ -328,10 +326,10 @@ async function openDir() {
                 v-model="selected.apiKey"
                 :type="showKey ? 'text' : 'password'"
                 class="input"
-                placeholder="sk-...（未设鉴权可留空）"
+                :placeholder="t('settings.api_key') + ' (optional)'"
                 spellcheck="false"
               />
-              <button class="btn btn-ghost btn-icon" :title="showKey ? '隐藏' : '显示'" @click="showKey = !showKey">
+              <button class="btn btn-ghost btn-icon" :title="showKey ? t('settings.hide_key') : t('settings.show_key')" @click="showKey = !showKey">
                 <Icon :name="showKey ? 'eye-off' : 'eye'" :size="16" />
               </button>
             </div>
@@ -340,93 +338,93 @@ async function openDir() {
           <div class="grid-2">
             <div class="field">
               <label class="label-row">
-                <span class="lbl"><Icon name="image" :size="13" /> 图片模型</span>
+                <span class="lbl"><Icon name="image" :size="13" /> {{ t('settings.image_model') }}</span>
                 <button type="button" class="mini-link" @click="manual.imageModel = !manual.imageModel">
-                  {{ manual.imageModel ? '从列表选' : '手动输入' }}
+                  {{ manual.imageModel ? t('generate.list_select') : t('generate.manual') }}
                 </button>
               </label>
               <input
                 v-if="manual.imageModel"
                 v-model="selected.imageModel"
                 class="input"
-                placeholder="手动输入模型名，如 flux"
+                :placeholder="t('settings.model_placeholder')"
                 spellcheck="false"
               />
-              <Dropdown v-else v-model="selected.imageModel" :options="imageOptions" placeholder="（未选择）" />
+              <Dropdown v-else v-model="selected.imageModel" :options="imageOptions" :placeholder="t('settings.unselected')" />
             </div>
             <div class="field">
               <label class="label-row">
-                <span class="lbl"><Icon name="film" :size="13" /> 视频模型</span>
+                <span class="lbl"><Icon name="film" :size="13" /> {{ t('settings.video_model') }}</span>
                 <button type="button" class="mini-link" @click="manual.videoModel = !manual.videoModel">
-                  {{ manual.videoModel ? '从列表选' : '手动输入' }}
+                  {{ manual.videoModel ? t('generate.list_select') : t('generate.manual') }}
                 </button>
               </label>
               <input
                 v-if="manual.videoModel"
                 v-model="selected.videoModel"
                 class="input"
-                placeholder="手动输入；留空则不支持出片"
+                :placeholder="t('generate.manual') + '; ' + t('settings.optional')"
                 spellcheck="false"
               />
-              <Dropdown v-else v-model="selected.videoModel" :options="videoOptions" placeholder="（不支持出片 / 未选择）" />
+              <Dropdown v-else v-model="selected.videoModel" :options="videoOptions" :placeholder="t('settings.unselected')" />
             </div>
           </div>
 
           <div class="field">
             <label class="label-row">
-              <span class="lbl"><Icon name="sparkle" :size="13" /> 优化模型（对话模型，用于「AI 优化提示词」）</span>
+              <span class="lbl"><Icon name="sparkle" :size="13" /> {{ t('settings.optimize_model') }}</span>
               <button type="button" class="mini-link" @click="manual.optimizeModel = !manual.optimizeModel">
-                {{ manual.optimizeModel ? '从列表选' : '手动输入' }}
+                {{ manual.optimizeModel ? t('generate.list_select') : t('generate.manual') }}
               </button>
             </label>
             <input
               v-if="manual.optimizeModel"
               v-model="selected.optimizeModel"
               class="input"
-              placeholder="gpt-4o-mini / claude-3-5-sonnet / grok-3-mini 等"
+              :placeholder="t('settings.model_placeholder')"
               spellcheck="false"
             />
-            <Dropdown v-else v-model="selected.optimizeModel" :options="optimizeOptions" placeholder="（未选择）" />
+            <Dropdown v-else v-model="selected.optimizeModel" :options="optimizeOptions" :placeholder="t('settings.unselected')" />
             <span class="hint">
-              <template v-if="modelsLoading">正在加载模型列表…</template>
-              <template v-else-if="providerModels.length">已加载 {{ providerModels.length }} 个模型，直接下拉选择（GPT / Claude / Grok 都兼容）。</template>
-              <template v-else>未取到模型列表，可点「测试连接」加载，或「手动输入」。</template>
+              <template v-if="modelsLoading">{{ t('settings.loading_models') }}</template>
+              <template v-else-if="providerModels.length">{{ t('settings.models_loaded') }}</template>
+              <template v-else>{{ t('settings.no_models') }}</template>
             </span>
           </div>
 
           <div class="grid-2">
             <div class="field">
-              <label>图片尺寸（可选）</label>
-              <Dropdown v-model="selected.imageSize" :options="sizeOptions" placeholder="（默认 / 不指定）" />
+              <label>{{ t('settings.image_size') }}</label>
+              <Dropdown v-model="selected.imageSize" :options="sizeOptions" :placeholder="t('settings.optional')" />
             </div>
             <div class="field">
-              <label>视频尺寸 / 时长（可选）</label>
+              <label>{{ t('settings.video_size_duration') }}</label>
               <div class="key-row">
                 <input v-model="selected.videoSize" class="input" placeholder="1280x720" spellcheck="false" />
-                <input v-model="selected.videoSeconds" class="input secs" placeholder="秒" spellcheck="false" />
+                <input v-model="selected.videoSeconds" class="input secs" :placeholder="t('generate.video_seconds')" spellcheck="false" />
               </div>
             </div>
           </div>
 
           <button class="adv-toggle" @click="showAdvanced = !showAdvanced">
             <Icon :name="showAdvanced ? 'eye-off' : 'eye'" :size="13" />
-            <span>{{ showAdvanced ? '收起高级' : '高级：自定义接口路径（图生图 / 出片）' }}</span>
+            <span>{{ showAdvanced ? t('settings.show_advanced') : t('settings.advanced_settings') }}</span>
           </button>
           <div v-if="showAdvanced" class="grid-2 adv">
             <div class="field">
-              <label>图生图接口路径</label>
+              <label>{{ t('settings.image_model') }}</label>
               <input v-model="selected.editPath" class="input" placeholder="/images/edits" spellcheck="false" />
-              <span class="hint">OpenAI / Grok 等多为 <code>/images/edits</code>，按平台改。</span>
+              <span class="hint">{{ t('settings.image_hint') }} <code>/images/edits</code>, {{ t('settings.image_hint2') }}</span>
             </div>
             <div class="field">
-              <label>出片接口路径</label>
+              <label>{{ t('settings.video_model') }}</label>
               <input v-model="selected.videoPath" class="input" placeholder="/videos/generations" spellcheck="false" />
-              <span class="hint">相对 Base URL，多数代理默认即可。</span>
+              <span class="hint">{{ t('settings.video_hint') }}</span>
             </div>
             <div class="field">
-              <label>异步轮询路径（可选）</label>
+              <label>{{ t('settings.async_path') }}</label>
               <input v-model="selected.videoPollPath" class="input" placeholder="/videos/generations/{id}" spellcheck="false" />
-              <span class="hint">异步出片时用 <code>{id}</code> 占位任务ID；留空自动推导。</span>
+              <span class="hint">{{ t('settings.async_hint') }} <code>{id}</code> {{ t('settings.async_hint2') }}</span>
             </div>
           </div>
 
@@ -434,7 +432,7 @@ async function openDir() {
             <button class="btn" :disabled="testing" @click="test">
               <span v-if="testing" class="spin"></span>
               <Icon v-else name="plug" :size="15" />
-              <span>测试连接</span>
+              <span>{{ t('settings.test_connection') }}</span>
             </button>
             <button
               class="btn"
@@ -442,18 +440,18 @@ async function openDir() {
               @click="setActive(selected.id)"
             >
               <Icon name="check" :size="15" />
-              <span>{{ selected.id === form.activeProviderId ? '当前接口' : '设为当前' }}</span>
+              <span>{{ selected.id === form.activeProviderId ? t('settings.current_interface') : t('settings.set_current') }}</span>
             </button>
             <button class="btn btn-danger-ghost" @click="removeProvider(selected.id)">
               <Icon name="trash" :size="15" />
-              <span>删除</span>
+              <span>{{ t('settings.delete') }}</span>
             </button>
             <Transition name="fade">
               <span v-if="testResult" class="test-result" :class="testResult.ok ? 'ok' : 'bad'">
                 <Icon :name="testResult.ok ? 'check' : 'alert'" :size="14" />
                 <template v-if="testResult.ok">
-                  连接成功（HTTP {{ testResult.status }}）<template v-if="testResult.models.length">
-                    · 模型 {{ testResult.models.length }} 个</template>
+                  {{ t('settings.connection_success') }} (HTTP {{ testResult.status }})<template v-if="testResult.models.length">
+                    · {{ testResult.models.length }} {{ t('settings.models_count') }}</template>
                 </template>
                 <template v-else>{{ testResult.message }}</template>
               </span>
@@ -461,13 +459,13 @@ async function openDir() {
           </div>
 
           <div v-if="testResult?.ok && testResult.models.length" class="model-list">
-            <span class="hint">点击模型名即可复制，再粘贴到上方对应的模型框：</span>
+            <span class="hint">{{ t('settings.copy_hint') }}</span>
             <div class="model-chips">
               <button
                 v-for="m in testResult.models.slice(0, 60)"
                 :key="m"
                 class="chip"
-                title="点击复制模型名"
+                :title="t('settings.copy_model')"
                 @click="copyModel(m)"
               >
                 {{ m }}
@@ -480,7 +478,7 @@ async function openDir() {
       <section class="card block">
         <div class="block-head">
           <Icon name="palette" :size="16" />
-          <h2>外观主题</h2>
+          <h2>{{ t('settings.greeting_theme') }}</h2>
         </div>
         <div class="theme-grid">
           <button
@@ -501,14 +499,14 @@ async function openDir() {
             <span class="tc-preview" style="background: #f4f5f7">
               <span class="tc-bar" :style="{ background: store.settings.customColor || '#10b981' }"></span>
             </span>
-            <span class="tc-label">自定义</span>
+            <span class="tc-label">{{ t('theme.custom') }}</span>
             <Icon v-if="currentTheme === 'custom'" name="check" :size="14" class="tc-check" />
           </button>
         </div>
 
         <div v-if="currentTheme === 'custom'" class="custom-color">
           <div class="cc-row">
-            <span class="cc-label">主题色</span>
+            <span class="cc-label">{{ t('settings.theme_color') }}</span>
             <input
               type="color"
               class="color-input"
@@ -534,24 +532,24 @@ async function openDir() {
       <section class="card block">
         <div class="block-head">
           <Icon name="settings" :size="16" />
-          <h2>通用设置</h2>
+          <h2>{{ t('settings.general') }}</h2>
         </div>
         <div class="grid-2">
           <div class="field">
-            <label>默认出图数量</label>
-            <Dropdown v-model="form.defaultCount" :options="countOptions" placeholder="选择数量" />
-            <span class="hint">「图片」模式每次生成的张数（视频固定 1 个）。</span>
+            <label>{{ t('settings.default_count') }}</label>
+            <Dropdown v-model="form.defaultCount" :options="countOptions" :placeholder="t('settings.select_count')" />
+            <span class="hint">{{ t('settings.default_count_hint') }}</span>
           </div>
           <div class="field">
-            <label>图片 / 视频保存目录</label>
+            <label>{{ t('settings.save_dir') }}</label>
             <div class="key-row">
-              <input v-model="form.saveDir" class="input" placeholder="留空则保存到 图片/RawPhotos" spellcheck="false" />
-              <button class="btn btn-ghost" @click="pickDir">选择</button>
-              <button class="btn btn-ghost btn-icon" title="打开目录" @click="openDir">
+              <input v-model="form.saveDir" class="input" :placeholder="t('settings.save_dir_hint')" spellcheck="false" />
+              <button class="btn btn-ghost" @click="pickDir">{{ t('settings.choose') }}</button>
+              <button class="btn btn-ghost btn-icon" :title="t('settings.open_dir')" @click="openDir">
                 <Icon name="folder-open" :size="16" />
               </button>
             </div>
-            <span class="hint">保存与画廊都使用这个目录。</span>
+            <span class="hint">{{ t('settings.save_dir_used') }}</span>
           </div>
         </div>
       </section>
@@ -559,16 +557,16 @@ async function openDir() {
       <section class="card block">
         <div class="block-head">
           <Icon name="alert" :size="16" />
-          <h2>额度预警</h2>
+          <h2>{{ t('settings.quota_alert') }}</h2>
         </div>
         <label class="switch-row">
           <input type="checkbox" v-model="form.alertEnabled" />
-          <span>开启低额度提醒</span>
+          <span>{{ t('settings.enable_alert') }}</span>
         </label>
         <div v-if="form.alertEnabled" class="field">
-          <label>当剩余额度低于（{{ '美元' }}）时提醒</label>
+          <label>{{ t('settings.alert_threshold') }} {{ t('settings.dollar') }}</label>
           <input v-model.number="form.alertThreshold" type="number" min="0" step="1" class="input thresh" />
-          <span class="hint">每 60 秒检查一次当前接口余额，跌破阈值时弹提示 + 系统通知（最小化到托盘也能收到）。需中转支持额度查询。</span>
+          <span class="hint">{{ t('settings.alert_desc') }}{{ t('settings.alert_desc2') }}</span>
         </div>
       </section>
 

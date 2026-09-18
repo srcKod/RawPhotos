@@ -74,7 +74,7 @@ function checkAlert() {
   if (rem <= th) {
     if (!belowAlerted) {
       belowAlerted = true
-      const msg = t('toast.lowQuota', { remaining: money(rem), threshold: money(th) })
+      const msg = t('toast.lowQuota') + ': ' + t('quota.remaining') + ' ' + money(rem) + ', ' + t('toast.thresholdBelow') + ' ' + money(th)
       toast.error(msg)
       window.api.notify({ title: t('toast.lowQuotaTitle'), body: msg })
     }
@@ -152,6 +152,28 @@ onUnmounted(() => {
           </button>
         </nav>
 
+        <div class="lang-row">
+          <button class="lang-btn" :title="t('settings.language')" @click.stop="showLangDropdown = !showLangDropdown">
+            <Icon name="globe" :size="16" />
+            <span class="lang-current">{{ langLabel }}</span>
+            <Icon name="chevron" :size="10" class="lang-chev" :class="{ open: showLangDropdown }" />
+          </button>
+          <Transition name="fade">
+            <div v-if="showLangDropdown" class="lang-dropdown" @click.stop>
+              <button
+                v-for="lang in availableLanguages"
+                :key="lang.code"
+                class="lang-option"
+                :class="{ active: currentLang === lang.code }"
+                @click="selectLanguage(lang.code)"
+              >
+                {{ lang.name }}
+                <Icon v-if="currentLang === lang.code" name="check" :size="13" />
+              </button>
+            </div>
+          </Transition>
+        </div>
+
         <div class="sidebar-foot">
           <div v-if="balance" class="balance" :title="t('quota.remaining')" >
             <span class="bal-ic"><Icon name="plug" :size="13" /></span>
@@ -186,32 +208,11 @@ onUnmounted(() => {
             </button>
           </div>
 
-          <div class="lang-row">
-          <button class="lang-btn" :title="t('settings.language')" @click="showLangDropdown = true">
-            <Icon name="globe" :size="16" />
-            <span class="lang-current">{{ langLabel }}</span>
-            <Icon name="chevron" :size="10" />
-          </button>
-          <Transition name="fade">
-            <div v-if="showLangDropdown" class="lang-dropdown" @click.stop>
-              <button
-                v-for="lang in availableLanguages"
-                :key="lang.code"
-                class="lang-option"
-                :class="{ active: currentLang.value === lang.code }"
-                @click="selectLanguage(lang.code)"
-              >
-                {{ lang.name }}
-              </button>
-            </div>
-          </Transition>
-        </div>
-
-        <div class="status-card">
+          <div class="status-card">
             <span class="dot" :class="{ on: configured }"></span>
             <div class="status-text">
-              <div class="status-title">{{ configured ? (prov?.name || '接口已连接') : '未配置接口' }}</div>
-              <div class="status-sub">{{ prov?.imageModel || '未设置模型' }}</div>
+              <div class="status-title">{{ configured ? (prov?.name || t('status.connected')) : t('status.not_configured') }}</div>
+              <div class="status-sub">{{ prov?.imageModel || t('status.no_model') }}</div>
             </div>
           </div>
         </div>
@@ -233,7 +234,7 @@ onUnmounted(() => {
     <Transition name="fade">
       <div v-if="closeDialog" class="modal-mask" @click.self="closeDialog = false">
         <div class="modal">
-          <button class="modal-x" :title="t('toast.success')" @click="closeDialog = false">
+          <button class="modal-x" :title="t('modal.close')" @click="closeDialog = false">
             <Icon name="win-close" :size="13" />
           </button>
           <h3 class="modal-title">{{ t('modal.close_title') }}</h3>
@@ -323,6 +324,94 @@ onUnmounted(() => {
   border-radius: 50%;
   background: var(--warn);
   box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.16);
+}
+
+.lang-row {
+  position: relative;
+  padding: 10px 12px 14px;
+}
+.lang-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 11px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+.lang-btn:hover {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+.lang-current {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lang-chev {
+  flex-shrink: 0;
+  color: var(--text-3);
+  transition: transform 0.16s ease, color 0.16s ease;
+}
+.lang-chev.open {
+  transform: rotate(-90deg);
+  color: var(--accent);
+}
+.lang-dropdown {
+  position: absolute;
+  top: calc(100% - 6px);
+  left: 12px;
+  right: 12px;
+  z-index: 60;
+  padding: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+.lang-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.lang-option:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.lang-option.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 .sidebar-foot {

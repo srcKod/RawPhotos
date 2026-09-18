@@ -10,3 +10,6 @@ settings.local.json
 # AI 助手本地配置 / 记忆（勿提交）
 .claude/
 .cursor/
+
+# Editor config (local only)
+.vscode/

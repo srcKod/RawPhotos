@@ -1,9 +1,11 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { ref, computed, onMounted } from 'vue'
 import { toast } from '../composables/useToast'
 import Lightbox from './Lightbox.vue'
 import Icon from './Icon.vue'
 
+const { t } = useI18n()
 const loading = ref(false)
 const dir = ref('')
 const items = ref([])
@@ -16,9 +18,9 @@ const filteredItems = computed(() =>
   filter.value === 'all' ? items.value : items.value.filter((i) => i.kind === filter.value)
 )
 const filterTabs = computed(() => [
-  { id: 'all', label: '全部', n: items.value.length },
-  { id: 'image', label: '图片', n: imageCount.value },
-  { id: 'video', label: '视频', n: videoCount.value }
+  { id: 'all', label: t('gallery.all'), n: items.value.length },
+  { id: 'image', label: t('gallery.images'), n: imageCount.value },
+  { id: 'video', label: t('gallery.videos'), n: videoCount.value }
 ])
 
 function srcOf(item) {
@@ -33,7 +35,7 @@ async function refresh() {
     dir.value = res.dir
     items.value = res.items || []
   } catch (err) {
-    toast.error(`读取画廊失败：${err.message}`)
+    toast.error(t('gallery.load_failed') + ': ' + err.message)
   } finally {
     loading.value = false
   }
@@ -54,9 +56,9 @@ async function saveAs(item) {
         ? { path: item.path, kind: 'video', defaultName: item.name }
         : { b64: (item.dataUrl || '').split(',')[1] || '', kind: 'image', defaultName: item.name }
     const res = await window.api.saveMediaAs(payload)
-    if (!res.canceled) toast.success(`已另存为 ${res.path}`)
+    if (!res.canceled) toast.success(t('gallery.save_as') + ' ' + res.path)
   } catch (err) {
-    toast.error(`另存失败：${err.message}`)
+    toast.error(t('toast.save_failed') + ': ' + err.message)
   }
 }
 
@@ -67,20 +69,20 @@ onMounted(refresh)
   <div class="view">
     <header class="view-head">
       <div class="head-title">
-        <h1>画廊</h1>
+        <h1>{{ t('gallery.title') }}</h1>
         <p class="sub">
-          已保存到本地 · 图片 {{ imageCount }} · 视频 {{ videoCount }}
+          {{ t('gallery.saved_to') }} · {{ t('gallery.images') }} {{ imageCount }} · {{ t('gallery.videos') }} {{ videoCount }}
         </p>
       </div>
       <div class="head-actions">
         <button class="btn btn-sm" :disabled="loading" @click="refresh">
           <span v-if="loading" class="spin"></span>
           <Icon v-else name="refresh" :size="15" />
-          <span>刷新</span>
+          <span>{{ t('gallery.refresh') }}</span>
         </button>
         <button class="btn btn-sm" @click="openFolder">
           <Icon name="folder-open" :size="15" />
-          <span>打开文件夹</span>
+          <span>{{ t('gallery.open_folder') }}</span>
         </button>
       </div>
     </header>
@@ -107,26 +109,26 @@ onMounted(refresh)
             <template v-if="item.kind === 'video'">
               <video :src="srcOf(item)" muted preload="metadata" playsinline></video>
               <div class="play-badge"><Icon name="play" :size="16" /></div>
-              <span class="kind-flag"><Icon name="film" :size="11" /> 视频</span>
+              <span class="kind-flag"><Icon name="film" :size="11" /> {{ t('gallery.videos') }}</span>
             </template>
             <img v-else :src="item.dataUrl" :alt="item.name" loading="lazy" />
             <div class="g-overlay"><Icon :name="item.kind === 'video' ? 'play' : 'expand'" :size="16" /></div>
           </div>
           <div class="g-foot">
             <span class="g-name" :title="item.name">{{ item.name }}</span>
-            <button class="btn btn-sm btn-icon btn-ghost" title="另存为…" @click="saveAs(item)">
+            <button class="btn btn-sm btn-icon btn-ghost" :title="t('gallery.save_as')" @click="saveAs(item)">
               <Icon name="download" :size="15" />
             </button>
           </div>
         </div>
       </div>
-        <p v-else class="filter-empty">该分类暂无内容</p>
+        <p v-else class="filter-empty">{{ t('gallery.no_content') }}</p>
       </template>
 
       <div v-else-if="!loading" class="empty">
         <div class="empty-art"><Icon name="grid" :size="32" /></div>
-        <p class="empty-title">画廊还是空的</p>
-        <p class="empty-sub">在「生成」页保存图片或视频后会出现在这里</p>
+        <p class="empty-title">{{ t('gallery.empty_title') }}</p>
+        <p class="empty-sub">{{ t('gallery.empty_sub') }}</p>
       </div>
     </div>
 
