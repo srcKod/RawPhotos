@@ -199,5 +199,10 @@
     "quit_app": "退出应用",
     "quit_desc": "完全关闭 RawPhotos",
     "remember_choice": "记住选择，下次不再询问"
+  },
+  "balance": {
+    "remaining": "剩余额度",
+    "total": "总额度",
+    "title": "中转额度"
   }
 }

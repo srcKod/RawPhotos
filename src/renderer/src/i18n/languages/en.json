@@ -199,5 +199,10 @@
     "quit_app": "Exit Application",
     "quit_desc": "Completely close RawPhotos",
     "remember_choice": "Remember choice, don't ask again"
+  },
+  "balance": {
+    "remaining": "Remaining Quota",
+    "total": "Total Quota",
+    "title": "Interface Quota"
   }
 }

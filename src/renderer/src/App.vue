@@ -61,6 +61,7 @@ async function changeLanguage(lang) {
   const { changeLanguage: i18nChangeLanguage } = await import('./i18n')
   await i18nChangeLanguage(lang)
   store.settings.language = lang
+  await persistSettings({ language: lang })
 }
 
 const balance = ref(null)
@@ -161,28 +162,28 @@ onUnmounted(() => {
             <div class="bal-text">
               <div class="bal-num">{{ money(balance.remaining) }}</div>
               <div class="bal-sub">
-                {{ t('balance.remaining') }}<template v-if="balance.total != null"> · {{ t('balance.total') }} {{ money(balance.total) }}</template>
+                {{ t('quota.remaining') }}<template v-if="balance.total != null"> · {{ t('quota.total') }} {{ money(balance.total) }}</template>
               </div>
             </div>
           </div>
 
           <div class="theme-row">
             <button
-              v-for="t in THEMES"
-              :key="t.id"
+              v-for="theme in THEMES"
+              :key="theme.id"
               class="theme-dot"
-              :class="{ active: currentTheme === t.id }"
-              :style="{ background: t.bg }"
-              :title="t("settings." + t.label)"
-              @click="setTheme(t.id)"
+              :class="{ active: currentTheme === theme.id }"
+              :style="{ background: theme.bg }"
+              :title="t(theme.label)"
+              @click="setTheme(theme.id)"
             >
-              <span class="theme-accent" :style="{ background: t.accent }"></span>
+              <span class="theme-accent" :style="{ background: theme.accent }"></span>
             </button>
             <button
               class="theme-dot"
               :class="{ active: currentTheme === 'custom' }"
               style="background: #f4f5f7"
-              :title="t('settings.custom_theme')"
+              :title="t('theme.custom')"
               @click="setTheme('custom')"
             >
               <span class="theme-accent" :style="{ background: store.settings.customColor || '#10b981' }"></span>
@@ -201,7 +202,7 @@ onUnmounted(() => {
                 v-for="lang in availableLanguages"
                 :key="lang.code"
                 class="lang-option"
-                :class="{ active: currentLang === lang.code }"
+                :class="{ active: currentLang.value === lang.code }"
                 @click="selectLanguage(lang.code)"
               >
                 {{ lang.name }}
@@ -236,26 +237,26 @@ onUnmounted(() => {
     <Transition name="fade">
       <div v-if="closeDialog" class="modal-mask" @click.self="closeDialog = false">
         <div class="modal">
-          <button class="modal-x" :title="t("toast.success")" @click="closeDialog = false">
+          <button class="modal-x" :title="t('toast.success')" @click="closeDialog = false">
             <Icon name="win-close" :size="13" />
           </button>
-          <h3 class="modal-title">{{ t("modal.close_title") }}</h3>
-          <p class="modal-desc">{{ t("modal.close_desc") }}</p>
+          <h3 class="modal-title">{{ t('modal.close_title') }}</h3>
+          <p class="modal-desc">{{ t('modal.close_desc') }}</p>
 
           <div class="modal-choices">
             <button class="choice" @click="chooseClose('tray')">
               <span class="choice-ic tray"><Icon name="tray" :size="18" /></span>
               <span class="choice-txt">
-                <b>最小化到托盘</b>
-                <small>后台继续运行，点托盘图标随时恢复</small>
+                <b>{{ t("modal.minimize_to_tray") }}</b>
+                <small>{{ t("modal.minimize_desc") }}</small>
               </span>
               <Icon name="chevron" :size="15" class="choice-arrow" />
             </button>
             <button class="choice" @click="chooseClose('quit')">
               <span class="choice-ic quit"><Icon name="power" :size="18" /></span>
               <span class="choice-txt">
-                <b>退出应用</b>
-                <small>完全关闭 RawPhotos</small>
+                <b>{{ t("modal.quit_app") }}</b>
+                <small>{{ t("modal.quit_desc") }}</small>
               </span>
               <Icon name="chevron" :size="15" class="choice-arrow" />
             </button>
@@ -263,7 +264,7 @@ onUnmounted(() => {
 
           <label class="modal-remember">
             <input type="checkbox" v-model="rememberClose" />
-            <span>记住选择，下次不再询问</span>
+            <span>{{ t("modal.remember_choice") }}</span>
           </label>
         </div>
       </div>
