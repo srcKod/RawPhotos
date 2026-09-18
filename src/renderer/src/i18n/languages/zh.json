@@ -204,5 +204,10 @@
     "remaining": "剩余额度",
     "total": "总额度",
     "title": "中转额度"
+  },
+  "status": {
+    "connected": "接口已连接",
+    "not_configured": "未配置接口",
+    "no_model": "未设置模型"
   }
 }

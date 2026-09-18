@@ -204,5 +204,10 @@
     "remaining": "Remaining Quota",
     "total": "Total Quota",
     "title": "Interface Quota"
+  },
+  "status": {
+    "connected": "Interface Connected",
+    "not_configured": "Interface Not Configured",
+    "no_model": "No Model Set"
   }
 }
