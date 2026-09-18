@@ -19,6 +19,9 @@ const { t } = useI18n()
 const view = ref('generate')
 const showLangDropdown = ref(false)
 
+// Available languages from i18n config
+const availableLanguages = SUPPORTED_LOCALES
+
 const navItems = computed(() => [
   { id: 'generate', label: t('nav.generate'), icon: 'sparkle' },
   { id: 'chat', label: t('nav.chat'), icon: 'chat' },
@@ -42,26 +45,16 @@ const langLabel = computed(() => {
 const quit = () => window.api.quitApp()
 const hideToTray = () => window.api.window.close()
 
-async function selectLanguage(lang) {
-  await changeLanguage(lang)
-  showLangDropdown.value = false
-}
-
-// Close dropdown when clicking outside
-onMounted(() => {
-  document.addEventListener('click', () => {
-    showLangDropdown.value = false
-  })
-})
-
-// Available languages from i18n config
-const availableLanguages = SUPPORTED_LOCALES
-
 async function changeLanguage(lang) {
   const { changeLanguage: i18nChangeLanguage } = await import('./i18n')
   await i18nChangeLanguage(lang)
   store.settings.language = lang
   await persistSettings({ language: lang })
+}
+
+function selectLanguage(lang) {
+  changeLanguage(lang)
+  showLangDropdown.value = false
 }
 
 const balance = ref(null)
@@ -130,6 +123,10 @@ onMounted(async () => {
   if (!isConfigured()) view.value = 'settings'
   loadBalance()
   balTimer = setInterval(loadBalance, 60000)
+
+  document.addEventListener('click', () => {
+    showLangDropdown.value = false
+  })
 })
 onUnmounted(() => {
   if (balTimer) clearInterval(balTimer)
@@ -247,16 +244,16 @@ onUnmounted(() => {
             <button class="choice" @click="chooseClose('tray')">
               <span class="choice-ic tray"><Icon name="tray" :size="18" /></span>
               <span class="choice-txt">
-                <b>{{ t("modal.minimize_to_tray") }}</b>
-                <small>{{ t("modal.minimize_desc") }}</small>
+                <b>{{ t('modal.minimize_to_tray') }}</b>
+                <small>{{ t('modal.minimize_desc') }}</small>
               </span>
               <Icon name="chevron" :size="15" class="choice-arrow" />
             </button>
             <button class="choice" @click="chooseClose('quit')">
               <span class="choice-ic quit"><Icon name="power" :size="18" /></span>
               <span class="choice-txt">
-                <b>{{ t("modal.quit_app") }}</b>
-                <small>{{ t("modal.quit_desc") }}</small>
+                <b>{{ t('modal.quit_app') }}</b>
+                <small>{{ t('modal.quit_desc') }}</small>
               </span>
               <Icon name="chevron" :size="15" class="choice-arrow" />
             </button>
@@ -264,7 +261,7 @@ onUnmounted(() => {
 
           <label class="modal-remember">
             <input type="checkbox" v-model="rememberClose" />
-            <span>{{ t("modal.remember_choice") }}</span>
+            <span>{{ t('modal.remember_choice') }}</span>
           </label>
         </div>
       </div>
