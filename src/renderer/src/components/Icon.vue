@@ -62,6 +62,8 @@ const PATHS = {
   chart: '<path d="M3 21h18"/><path d="M6 21V11"/><path d="M11 21V4"/><path d="M16 21v-7"/>',
   chat: '<path d="M21 11.5a8 8 0 0 1-11.6 7.1L4 20.5l1.9-5.3A8 8 0 1 1 21 11.5z"/>',
   stop: '<rect x="5" y="5" width="14" height="14" rx="3"/>',
+  globe:
+    '<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2v20"/>',
   eraser:
     '<path d="M7 21h13"/><path d="M16.5 4.5l3 3a2 2 0 0 1 0 2.8L10 20H6l-3-3a2 2 0 0 1 0-2.8l8.7-8.7a2 2 0 0 1 2.8 0z"/>'
 }

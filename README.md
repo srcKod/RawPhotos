@@ -229,3 +229,9 @@ RawPhotos/
 <div align="center">
 如果这个项目对你有帮助，欢迎 Star ⭐
 </div>
+
+---
+
+## 🌐 语言 / Language
+
+本项目文档为中文。English documentation is available at [README_EN.md](./README_EN.md).

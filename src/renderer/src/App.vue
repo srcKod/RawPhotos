@@ -1,6 +1,8 @@
 <script setup>
 import { onMounted, onUnmounted, watch, ref, computed } from 'vue'
 import { store, loadSettings, persistSettings, isConfigured, activeProvider, setTheme, THEMES } from './store'
+import { useI18n } from 'vue-i18n'
+import { SUPPORTED_LOCALES } from './i18n'
 import { toast } from './composables/useToast'
 import TitleBar from './components/TitleBar.vue'
 import Icon from './components/Icon.vue'
@@ -13,24 +15,53 @@ import StatsView from './components/StatsView.vue'
 import AboutView from './components/AboutView.vue'
 import ToastHost from './components/ToastHost.vue'
 
+const { t } = useI18n()
 const view = ref('generate')
+const showLangDropdown = ref(false)
 
-const navItems = [
-  { id: 'generate', label: '生成', icon: 'sparkle' },
-  { id: 'chat', label: '对话', icon: 'chat' },
-  { id: 'gallery', label: '画廊', icon: 'grid' },
-  { id: 'stats', label: '统计', icon: 'chart' },
-  { id: 'logs', label: '日志', icon: 'logs' },
-  { id: 'settings', label: '设置', icon: 'settings' },
-  { id: 'about', label: '关于', icon: 'info' }
-]
+const navItems = computed(() => [
+  { id: 'generate', label: t('nav.generate'), icon: 'sparkle' },
+  { id: 'chat', label: t('nav.chat'), icon: 'chat' },
+  { id: 'gallery', label: t('nav.gallery'), icon: 'grid' },
+  { id: 'stats', label: t('nav.stats'), icon: 'chart' },
+  { id: 'logs', label: t('nav.logs'), icon: 'logs' },
+  { id: 'settings', label: t('nav.settings'), icon: 'settings' },
+  { id: 'about', label: t('nav.about'), icon: 'info' }
+])
 
 const configured = computed(() => isConfigured())
 const prov = computed(() => activeProvider())
 const currentTheme = computed(() => store.settings.theme || 'sky')
+const currentLang = computed(() => store.settings.language || 'en')
+
+const langLabel = computed(() => {
+  const found = availableLanguages.find(l => l.code === currentLang.value)
+  return found ? found.name : 'English'
+})
 
 const quit = () => window.api.quitApp()
 const hideToTray = () => window.api.window.close()
+
+async function selectLanguage(lang) {
+  await changeLanguage(lang)
+  showLangDropdown.value = false
+}
+
+// Close dropdown when clicking outside
+onMounted(() => {
+  document.addEventListener('click', () => {
+    showLangDropdown.value = false
+  })
+})
+
+// Available languages from i18n config
+const availableLanguages = SUPPORTED_LOCALES
+
+async function changeLanguage(lang) {
+  const { changeLanguage: i18nChangeLanguage } = await import('./i18n')
+  await i18nChangeLanguage(lang)
+  store.settings.language = lang
+}
 
 const balance = ref(null)
 function money(v) {
@@ -50,9 +81,9 @@ function checkAlert() {
   if (rem <= th) {
     if (!belowAlerted) {
       belowAlerted = true
-      const msg = `剩余额度 ${money(rem)}，已低于预警值 ${money(th)}`
-      toast.error(`⚠️ 额度预警：${msg}`)
-      window.api.notify({ title: '额度预警 · RawPhotos', body: msg })
+      const msg = t('toast.lowQuota', { remaining: money(rem), threshold: money(th) })
+      toast.error(msg)
+      window.api.notify({ title: t('toast.lowQuotaTitle'), body: msg })
     }
   } else {
     belowAlerted = false
@@ -125,12 +156,12 @@ onUnmounted(() => {
         </nav>
 
         <div class="sidebar-foot">
-          <div v-if="balance" class="balance" title="当前接口剩余额度（每分钟刷新）">
+          <div v-if="balance" class="balance" :title="t('quota.remaining')" >
             <span class="bal-ic"><Icon name="plug" :size="13" /></span>
             <div class="bal-text">
               <div class="bal-num">{{ money(balance.remaining) }}</div>
               <div class="bal-sub">
-                剩余额度<template v-if="balance.total != null"> · 总 {{ money(balance.total) }}</template>
+                {{ t('balance.remaining') }}<template v-if="balance.total != null"> · {{ t('balance.total') }} {{ money(balance.total) }}</template>
               </div>
             </div>
           </div>
@@ -142,7 +173,7 @@ onUnmounted(() => {
               class="theme-dot"
               :class="{ active: currentTheme === t.id }"
               :style="{ background: t.bg }"
-              :title="`主题：${t.label}`"
+              :title="t("settings." + t.label)"
               @click="setTheme(t.id)"
             >
               <span class="theme-accent" :style="{ background: t.accent }"></span>
@@ -151,14 +182,35 @@ onUnmounted(() => {
               class="theme-dot"
               :class="{ active: currentTheme === 'custom' }"
               style="background: #f4f5f7"
-              title="自定义主题"
+              :title="t('settings.custom_theme')"
               @click="setTheme('custom')"
             >
               <span class="theme-accent" :style="{ background: store.settings.customColor || '#10b981' }"></span>
             </button>
           </div>
 
-          <div class="status-card">
+          <div class="lang-row">
+          <button class="lang-btn" :title="t('settings.language')" @click="showLangDropdown = true">
+            <Icon name="globe" :size="16" />
+            <span class="lang-current">{{ langLabel }}</span>
+            <Icon name="chevron" :size="10" />
+          </button>
+          <Transition name="fade">
+            <div v-if="showLangDropdown" class="lang-dropdown" @click.stop>
+              <button
+                v-for="lang in availableLanguages"
+                :key="lang.code"
+                class="lang-option"
+                :class="{ active: currentLang === lang.code }"
+                @click="selectLanguage(lang.code)"
+              >
+                {{ lang.name }}
+              </button>
+            </div>
+          </Transition>
+        </div>
+
+        <div class="status-card">
             <span class="dot" :class="{ on: configured }"></span>
             <div class="status-text">
               <div class="status-title">{{ configured ? (prov?.name || '接口已连接') : '未配置接口' }}</div>
@@ -184,11 +236,11 @@ onUnmounted(() => {
     <Transition name="fade">
       <div v-if="closeDialog" class="modal-mask" @click.self="closeDialog = false">
         <div class="modal">
-          <button class="modal-x" title="取消" @click="closeDialog = false">
+          <button class="modal-x" :title="t("toast.success")" @click="closeDialog = false">
             <Icon name="win-close" :size="13" />
           </button>
-          <h3 class="modal-title">关闭 RawPhotos</h3>
-          <p class="modal-desc">选择关闭方式</p>
+          <h3 class="modal-title">{{ t("modal.close_title") }}</h3>
+          <p class="modal-desc">{{ t("modal.close_desc") }}</p>
 
           <div class="modal-choices">
             <button class="choice" @click="chooseClose('tray')">

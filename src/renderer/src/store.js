@@ -1,10 +1,12 @@
 import { reactive } from 'vue'
 
+// THEMES: labels will be translated via i18n keys
 export const THEMES = [
-  { id: 'green', label: '晴绿', bg: '#f2f7f4', accent: '#0d9488' },
-  { id: 'sky', label: '海盐', bg: '#eef4fb', accent: '#0ea5e9' },
-  { id: 'dark', label: '曜夜', bg: '#0e1116', accent: '#6ea8fe' }
+  { id: 'green', label: 'theme.green', bg: '#f2f7f4', accent: '#0d9488' },
+  { id: 'sky', label: 'theme.sky', bg: '#eef4fb', accent: '#0ea5e9' },
+  { id: 'dark', label: 'theme.dark', bg: '#0e1116', accent: '#6ea8fe' }
 ]
+
 const THEME_IDS = new Set([...THEMES.map((t) => t.id), 'custom'])
 const ACCENT_VARS = ['--accent', '--accent-hover', '--accent-soft', '--accent-line', '--ring', '--accent-glow', '--on-accent']
 
@@ -20,7 +22,8 @@ export const store = reactive({
     chatModel: '',
     chatProviderId: '',
     alertEnabled: false,
-    alertThreshold: 5
+    alertThreshold: 5,
+    language: 'en'
   },
   settingsLoaded: false,
   // 本次会话生成的结果：{ id, kind:'image'|'video', b64, url, prompt, revisedPrompt, model, time, saved }
@@ -53,7 +56,6 @@ export function applyTheme(theme) {
     el.style.setProperty('--accent-line', `rgba(${r}, ${g}, ${b}, 0.5)`)
     el.style.setProperty('--ring', `rgba(${r}, ${g}, ${b}, 0.4)`)
     el.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.28)`)
-    // 亮色 accent（如柠黄）上白字看不清，按感知亮度决定用白字还是深字
     const luma = 0.299 * r + 0.587 * g + 0.114 * b
     el.style.setProperty('--on-accent', luma > 165 ? '#15181f' : '#ffffff')
   } else {
@@ -76,6 +78,11 @@ export async function loadSettings() {
   store.settings = await window.api.getSettings()
   store.settingsLoaded = true
   applyTheme(store.settings.theme)
+  // Sync i18n locale with saved language setting
+  if (store.settings.language) {
+    const { changeLanguage } = await import('./i18n')
+    await changeLanguage(store.settings.language)
+  }
   return store.settings
 }
 
@@ -87,6 +94,28 @@ export async function persistSettings(patch) {
 export async function setTheme(theme) {
   applyTheme(theme)
   return persistSettings({ theme })
+}
+
+function getInitialLanguage() {
+  try {
+    const saved = localStorage.getItem('rawphotos-language')
+    if (saved) return saved
+  } catch {
+    // localStorage not available
+  }
+  return 'en' // Default to English
+}
+
+// Language helper functions
+export async function setLanguage(lang) {
+  const { changeLanguage } = await import('./i18n')
+  await changeLanguage(lang)
+  store.settings.language = lang
+  return persistSettings({ language: lang })
+}
+
+export function getCurrentLanguage() {
+  return store.settings.language || 'en'
 }
 
 export function activeProvider() {
