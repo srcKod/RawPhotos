@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted, watch, ref, computed } from 'vue'
 import { store, loadSettings, persistSettings, isConfigured, activeProvider, setTheme, THEMES } from './store'
 import { useI18n } from 'vue-i18n'
-import { SUPPORTED_LOCALES } from './i18n'
+import { SUPPORTED_LOCALES, changeLanguage as i18nChangeLanguage } from './i18n'
 import { toast } from './composables/useToast'
 import TitleBar from './components/TitleBar.vue'
 import Icon from './components/Icon.vue'
@@ -46,7 +46,6 @@ const quit = () => window.api.quitApp()
 const hideToTray = () => window.api.window.close()
 
 async function changeLanguage(lang) {
-  const { changeLanguage: i18nChangeLanguage } = await import('./i18n')
   await i18nChangeLanguage(lang)
   store.settings.language = lang
   await persistSettings({ language: lang })

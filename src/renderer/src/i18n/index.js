@@ -30,10 +30,8 @@ const i18n = createI18n({
   locale: getInitialLocale(),
   fallbackLocale: 'en',
   messages,
-  missing: (locale, key) => {
-    // Fallback to the key itself so missing translations are visible during development
-    return key
-  }
+  silentTranslationWarn: true,
+  silentFailed: true
 })
 
 // Change language and persist to localStorage
