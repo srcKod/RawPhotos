@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { changeLanguage as i18nChangeLanguage } from './i18n'
 
 // THEMES: labels will be translated via i18n keys
 export const THEMES = [
@@ -80,8 +81,7 @@ export async function loadSettings() {
   applyTheme(store.settings.theme)
   // Sync i18n locale with saved language setting
   if (store.settings.language) {
-    const { changeLanguage } = await import('./i18n')
-    await changeLanguage(store.settings.language)
+    await i18nChangeLanguage(store.settings.language)
   }
   return store.settings
 }

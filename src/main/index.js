@@ -1100,16 +1100,16 @@ function showMainWindow() {
   mainWindow.focus()
 }
 
-// 系统托盘：X 收起后从这里恢复或退出
+// System tray menu — English by default (i18n not available in main process)
 function createTray() {
   if (tray) return
   tray = new Tray(icon)
   tray.setToolTip('RawPhotos')
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: '显示 RawPhotos', click: showMainWindow },
+      { label: 'Show RawPhotos', click: showMainWindow },
       { type: 'separator' },
-      { label: '退出', click: () => app.quit() }
+      { label: 'Quit', click: () => app.quit() }
     ])
   )
   tray.on('click', showMainWindow)
