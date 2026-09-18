@@ -160,7 +160,8 @@ function enqueue() {
     return
   }
   const text = prompt.value.trim()
-  // 图生视频可以只给一张图不写字（让画面动起来）；其余场景提示词必填
+  // Image-to-video may run with just a reference image and no text (animate the scene);
+  // every other mode requires a prompt
   if (!text && !(mode.value === 'video' && refImage.value)) {
     toast.error(t('generate.enter_prompt'))
     return
@@ -173,7 +174,8 @@ function enqueue() {
     model: model.value || undefined,
     size: (mode.value === 'video' ? vSize.value : iSize.value) || undefined,
     seconds: mode.value === 'video' ? vSeconds.value || undefined : undefined,
-    // 图片=图生图（/images/edits）；视频=图生视频（grok-imagine 等模型必须带图）
+    // image = image-to-image (/images/edits); video = image-to-video (grok-imagine and
+    // similar models require the reference image)
     refImage: refImage.value ? { b64: refImage.value.b64, name: refImage.value.name } : null,
     status: 'pending'
   })
@@ -806,7 +808,8 @@ function onKeydown(e) {
   align-items: center;
   gap: 10px;
   font-size: 13px;
-  /* 用主题的警示色：原先固定浅黄 #f5c264 在浅色主题的白底上几乎看不清 */
+  /* Uses the theme's warn color: the old fixed #f5c264 was nearly invisible on white
+     backgrounds in light themes */
   color: var(--warn);
   border: 1px solid color-mix(in srgb, var(--warn) 32%, transparent);
   background: color-mix(in srgb, var(--warn) 8%, transparent);

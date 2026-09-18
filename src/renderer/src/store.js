@@ -27,7 +27,7 @@ export const store = reactive({
     language: 'en'
   },
   settingsLoaded: false,
-  // 本次会话生成的结果：{ id, kind:'image'|'video', b64, url, prompt, revisedPrompt, model, time, saved }
+  // Results generated this session: { id, kind:'image'|'video', b64, url, prompt, revisedPrompt, model, time, saved }
   results: []
 })
 
@@ -65,7 +65,7 @@ export function applyTheme(theme) {
   try {
     localStorage.setItem('rawphotos-theme', t)
   } catch {
-    // 忽略：localStorage 不可用不影响主题应用
+    // ignore: localStorage unavailability does not affect theme application
   }
 }
 

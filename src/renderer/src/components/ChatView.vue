@@ -54,7 +54,7 @@ const providers = computed(() => store.settings.providers || [])
 const providerOptions = computed(() =>
   providers.value.map((p) => ({ value: p.id, label: p.name || t('settings.unnamed_interface') }))
 )
-// 对话可独立选接口/分组（与生成页的「当前接口」分开）
+// Chat picks its own provider/model (independent from the generate view's "current interface")
 const chatProviderId = computed({
   get: () => store.settings.chatProviderId || store.settings.activeProviderId,
   set: async (id) => {
@@ -74,7 +74,7 @@ const chatModel = computed({
 })
 const modelOptions = computed(() => {
   const cur = chatModel.value
-  // 对话用：过滤掉明显的图片/视频模型，避免误选导致答非所问
+  // Chat usage: filter out obvious image/video models to avoid wrong-tool answers
   let list = models.value.filter((m) => !CHAT_FILTER.test(m))
   if (cur && !list.includes(cur)) list = [cur, ...list]
   return list.map((m) => ({ value: m, label: m }))
@@ -126,13 +126,14 @@ async function autoSave() {
   const firstUser = messages.value.find((m) => m.role === 'user')
   const title = ((firstUser && firstUser.text) || t('chat.new_conv_export')).slice(0, 24) || t('chat.new_conv_export')
   try {
-    // 必须剥掉 Vue reactive 代理再过 IPC：Proxy 无法被 Electron 序列化，
-    // 直接传会抛 "object could not be cloned" 被下面 catch 吞掉 → 历史永远存不上（曾致命）
+    // Must strip the Vue reactive proxy before IPC: Proxy cannot be structured-cloned by Electron,
+    // the direct pass would throw "object could not be cloned", get swallowed by the catch below,
+    // and history would never persist (this was once a fatal bug)
     const plain = JSON.parse(JSON.stringify({ id: currentId.value, title, messages: messages.value }))
     await window.api.chatsSave(plain)
     loadConvList()
   } catch {
-    // 保存失败不打断对话
+    // save failure must not interrupt the conversation
   }
 }
 
@@ -179,7 +180,7 @@ async function clearCurrent() {
     try {
       await window.api.chatsDelete(currentId.value)
     } catch {
-      // 忽略
+      // ignore
     }
     loadConvList()
   }
@@ -333,11 +334,12 @@ onMounted(async () => {
   await loadModels()
   ensureChatModel()
   await loadConvList()
-  // 进来自动接上最近一次会话（原来每次进页都是空白，用户以为历史丢了）
+  // Auto-resume the most recent conversation on entry (previously each entry was blank,
+  // making users believe history was lost)
   if (!currentId.value && convList.value.length) openConv(convList.value[0].id)
 })
 
-// 切到其他页签组件会被销毁（v-if），离开前兜底存一次
+// Switching tabs destroys this component (v-if), so persist once more on the way out
 onUnmounted(() => {
   autoSave()
 })
@@ -791,7 +793,7 @@ onUnmounted(() => {
   font-size: 11.5px;
   padding: 3px 8px;
   border-radius: 999px;
-  /* 跟随气泡文字色打底，深浅主题的 accent 气泡上都可见 */
+  /* Follows the bubble text color as a base; visible on accent bubbles in both light and dark themes */
   background: color-mix(in srgb, currentColor 16%, transparent);
 }
 .msg.assistant .file-chip {

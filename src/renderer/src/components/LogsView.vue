@@ -233,7 +233,7 @@ onUnmounted(() => off && off())
   color: var(--text-2);
   flex-shrink: 0;
 }
-/* 中间亮度的紫/蓝，浅色与深色主题下都可读（原浅紫/浅蓝在白底上看不清） */
+/* Mid-brightness purple/blue, readable in both light and dark themes (the old pale purple/blue was unreadable on white) */
 .kind.image {
   color: #7c5cf0;
 }

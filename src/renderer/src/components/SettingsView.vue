@@ -78,7 +78,8 @@ const testResult = ref(null)
 
 const selected = computed(() => form.providers.find((p) => p.id === selectedId.value) || null)
 
-// 把当前已选值并入下拉选项（即使它不在 /models 列表里，如手动填的 flux 也能保留显示）
+// Merge the currently selected value into the dropdown options (even when it is not in the
+// /models list, e.g. a manually typed flux stays selectable and visible)
 function optionsFor(current) {
   const list = providerModels.value
   if (current && !list.includes(current)) return [current, ...list]
@@ -98,7 +99,8 @@ const optimizeOptions = computed(() => [
   ...optionsFor(selected.value?.optimizeModel)
 ])
 
-// 进入/切换接口时静默拉取该接口的模型列表，填充下拉。失败不打扰（留空 + 可手动输入）。
+// Silently fetch the selected provider's model list on entry/switch to fill the dropdown.
+// Failures stay silent (leave empty + allow manual input).
 async function loadModels() {
   const p = selected.value
   providerModels.value = []
@@ -174,7 +176,7 @@ function selectProvider(id) {
 
 async function setActive(id) {
   form.activeProviderId = id
-  // 立即持久化（含当前接口列表），不必再点「保存设置」
+  // Persist immediately (including the current provider list); no need to click "Save settings"
   saving.value = true
   try {
     await persistSettings({
@@ -482,17 +484,17 @@ async function openDir() {
         </div>
         <div class="theme-grid">
           <button
-            v-for="t in THEMES"
-            :key="t.id"
+            v-for="theme in THEMES"
+            :key="theme.id"
             class="theme-card"
-            :class="{ active: currentTheme === t.id }"
-            @click="setTheme(t.id)"
+            :class="{ active: currentTheme === theme.id }"
+            @click="setTheme(theme.id)"
           >
-            <span class="tc-preview" :style="{ background: t.bg }">
-              <span class="tc-bar" :style="{ background: t.accent }"></span>
+            <span class="tc-preview" :style="{ background: theme.bg }">
+              <span class="tc-bar" :style="{ background: theme.accent }"></span>
             </span>
-            <span class="tc-label">{{ t.label }}</span>
-            <Icon v-if="currentTheme === t.id" name="check" :size="14" class="tc-check" />
+            <span class="tc-label">{{ t(theme.label) }}</span>
+            <Icon v-if="currentTheme === theme.id" name="check" :size="14" class="tc-check" />
           </button>
 
           <button class="theme-card" :class="{ active: currentTheme === 'custom' }" @click="setTheme('custom')">
@@ -830,7 +832,7 @@ code {
   padding: 1px 6px;
   border-radius: 5px;
   font-size: 12px;
-  /* 原固定浅蓝 #8ab4ff 在浅色主题的白底上看不清，改随主题强调色 */
+  /* The old fixed #8ab4ff was unreadable on white in light themes; now follows the theme accent color */
   color: var(--accent);
   font-family: 'Cascadia Code', Consolas, monospace;
 }
@@ -962,5 +964,5 @@ code {
 .thresh {
   max-width: 160px;
 }
-/* 底部保存条已移除，统一用右上角「保存设置」 */
+/* Bottom save bar removed; saving is unified via the top-right "Save settings" button */
 </style>

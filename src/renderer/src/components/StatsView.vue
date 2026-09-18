@@ -113,7 +113,7 @@ let timer = null
 onMounted(() => {
   refresh()
   loadQuota()
-  // 额度定时刷新（每 60s），别只跑一次
+  // Periodic quota refresh (every 60s), not just once at mount
   timer = setInterval(() => {
     loadQuota()
     refresh()
