@@ -27,7 +27,8 @@ function makeProvider(patch = {}) {
     editPath: patch.editPath || '/images/edits',
     videoPath: patch.videoPath || '/videos/generations',
     videoPollPath: patch.videoPollPath || '',
-    // '' = legacy /videos/generations style; 'openai-videos' = OpenAI Videos API (POST /videos + video_id, e.g. Agnes)
+    // '' = legacy /videos/generations style; 'openai-videos' = OpenAI Videos API (POST /videos + video_id, e.g. Agnes);
+    // 'openai-videos-strict' = Sora-compatible strict body (only model/prompt top-level, rest in extra_body, e.g. Google Gemini)
     videoApi: patch.videoApi || ''
   }
 }
@@ -95,12 +96,45 @@ function migrate(raw) {
       })
     )
   }
+  // Google Gemini official OpenAI-compat endpoint: images via /images/generations
+  // (gemini-2.5-flash-image returns b64_json), video via the Sora-style /videos
+  // surface (veo) handled by the openai-videos-strict adapter — the strict body is
+  // required because Google rejects unknown top-level fields like `mode` with 400.
+  // Idempotent — paste a key.
+  if (!s.providers.some((p) => String(p.baseUrl || '').includes('generativelanguage.googleapis.com'))) {
+    s.providers.push(
+      makeProvider({
+        name: m('main.preset_google'),
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+        imageModel: 'gemini-2.5-flash-image',
+        videoModel: 'veo-3.1-generate-preview',
+        videoApi: 'openai-videos-strict',
+        videoPath: '/videos'
+      })
+    )
+  }
+  // Volcano Ark (ByteDance): Seedream image models speak the OpenAI images format.
+  // Seedance video uses Ark's own contents/generations/tasks API (incompatible with
+  // both video adapters for now), so video stays unconfigured on this preset.
+  if (!s.providers.some((p) => String(p.baseUrl || '').includes('ark.cn-beijing.volces.com'))) {
+    s.providers.push(
+      makeProvider({
+        name: m('main.preset_ark'),
+        baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+        imageModel: 'doubao-seedream-4-0-250828'
+      })
+    )
+  }
   // Field completion + historical value fixes
   s.providers = s.providers.map((p) => {
     const fixed = makeProvider(p)
     // Rename the legacy auto-named local CLIProxyAPI provider to the standard relay name —
     // the comparison literal stays Chinese on purpose: it matches stored legacy settings.
     if (fixed.name === '本地 CLIProxyAPI') fixed.name = m('main.relay_interface')
+    // Self-heal: the Google preset originally shipped with the Agnes-style openai-videos
+    // adapter, whose top-level `mode`/`seconds` fields Google's strict surface rejects with
+    // 400 INVALID_ARGUMENT. Upgrade saved copies to the strict variant.
+    if (String(fixed.baseUrl || '').includes('generativelanguage.googleapis.com') && fixed.videoApi === 'openai-videos') fixed.videoApi = 'openai-videos-strict'
     // Legacy default grok-2-image is unsupported on most relays; fix to the confirmed Grok Imagine image model
     if (fixed.imageModel === 'grok-2-image') fixed.imageModel = 'grok-imagine-image'
     // When no video model is set, default to the same family so video works out of the box (changeable in Settings)
@@ -300,7 +334,8 @@ async function pollVideoJob(baseUrl, provider, jobId) {
     if (items.length) return items
     const status = String(json.status || json?.data?.status || json?.result?.status || '').toLowerCase()
     if (TERMINAL_BAD.includes(status)) {
-      const reason = json?.error?.message || json?.message || status
+      // Google's compat layer reports failures as a bare string on `error`; others nest {message}
+      const reason = json?.error?.message || (typeof json?.error === 'string' && json.error) || json?.message || status
       throw new Error(m('main.err_video_task_failed', { reason: String(reason).slice(0, 300) }))
     }
     delay = Math.min(delay + 1000, 9000)
@@ -701,9 +736,11 @@ function registerIpc() {
     const provider = activeProvider(settings)
     const baseUrl = normalizeBaseUrl(provider.baseUrl)
     const model = payload.model || provider.videoModel
-    // OpenAI Videos APIs (videoApi === 'openai-videos', e.g. Agnes) create tasks at POST /videos
+    // OpenAI Videos APIs create tasks at POST /videos: 'openai-videos' (e.g. Agnes) and
+    // 'openai-videos-strict' (e.g. Google Gemini, which rejects unknown top-level fields)
     const oaVideos = provider.videoApi === 'openai-videos'
-    const path = normalizeBaseUrl(provider.videoPath) || (oaVideos ? '/videos' : '/videos/generations')
+    const oaStrict = provider.videoApi === 'openai-videos-strict'
+    const path = normalizeBaseUrl(provider.videoPath) || (oaVideos || oaStrict ? '/videos' : '/videos/generations')
     const url = `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`
     const t0 = Date.now()
     try {
@@ -716,7 +753,23 @@ function registerIpc() {
       const body = { model, prompt: prompt || m('main.default_video_prompt') }
       const size = payload.size || provider.videoSize
       const seconds = payload.seconds || provider.videoSeconds
-      if (oaVideos) {
+      if (oaStrict) {
+        // Sora-compatible strict surface (Google Gemini): only model and prompt are valid at
+        // top level — unknown top-level fields are rejected with 400 INVALID_ARGUMENT, so the
+        // optional params go inside extra_body (duration_seconds as a number, aspect_ratio
+        // derived from the pixel size; Veo supports only 16:9 / 9:16, no square option).
+        const extra = {}
+        const n = parseInt(seconds, 10)
+        if (n) extra.duration_seconds = n
+        const dim = String(size || '').match(/^(\d+)\s*[x×]\s*(\d+)$/i)
+        if (dim) {
+          const w = +dim[1]
+          const h = +dim[2]
+          if (w > h) extra.aspect_ratio = '16:9'
+          else if (h > w) extra.aspect_ratio = '9:16'
+        }
+        if (Object.keys(extra).length) body.extra_body = extra
+      } else if (oaVideos) {
         // OpenAI Videos spec: mode is required (text / keyframe / reference), seconds is a
         // string like "5", size is a resolution tier — pixel dimensions are rejected with 400.
         body.mode = payload.imageB64 ? 'keyframe' : 'text'
@@ -741,7 +794,11 @@ function registerIpc() {
       let bodies = [body]
       if (payload.imageB64) {
         const dataUrl = `data:${mimeOf(payload.imageName || 'image.png')};base64,${payload.imageB64}`
-        if (oaVideos) {
+        if (oaStrict) {
+          // extra_body.image shape is undocumented on the compat layer; try a data-URL string
+          // (if the shape is wrong, the provider's own error message is surfaced as-is)
+          bodies = [{ ...body, extra_body: { ...(body.extra_body || {}), image: dataUrl } }]
+        } else if (oaVideos) {
           // OpenAI Videos keyframe mode: the image becomes first_frame. Note Agnes requires a
           // publicly reachable URL for reference media — a data: URL may be rejected (the API
           // error message is surfaced as-is).
