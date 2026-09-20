@@ -67,6 +67,7 @@ const form = reactive({
   activeProviderId: '',
   defaultCount: 1,
   saveDir: '',
+  agentWorkspace: '',
   alertEnabled: false,
   alertThreshold: 5
 })
@@ -134,6 +135,7 @@ function hydrate() {
   form.activeProviderId = s.activeProviderId || form.providers[0]?.id || ''
   form.defaultCount = s.defaultCount || 1
   form.saveDir = s.saveDir || ''
+  form.agentWorkspace = s.agentWorkspace || ''
   form.alertEnabled = !!s.alertEnabled
   form.alertThreshold = s.alertThreshold ?? 5
   if (!form.providers.some((p) => p.id === selectedId.value)) {
@@ -226,6 +228,7 @@ async function save() {
       activeProviderId: form.activeProviderId,
       defaultCount: form.defaultCount,
       saveDir: form.saveDir,
+      agentWorkspace: form.agentWorkspace.trim(),
       alertEnabled: form.alertEnabled,
       alertThreshold: Number(form.alertThreshold) || 0
     })
@@ -270,6 +273,19 @@ async function copyModel(m) {
 async function pickDir() {
   const dir = await window.api.pickDir()
   if (dir) form.saveDir = dir
+}
+
+// Agent workspace: persist immediately so the next chat message already uses it
+async function pickAgentWorkspace() {
+  const dir = await window.api.pickDir()
+  if (!dir) return
+  form.agentWorkspace = dir
+  await save()
+}
+
+async function clearAgentWorkspace() {
+  form.agentWorkspace = ''
+  await save()
 }
 
 async function openDir() {
@@ -579,6 +595,17 @@ async function openDir() {
             </div>
             <span class="hint">{{ t('settings.save_dir_used') }}</span>
           </div>
+        </div>
+        <div class="field">
+          <label>{{ t('settings.agent_workspace') }}</label>
+          <div class="key-row">
+            <input v-model="form.agentWorkspace" class="input" :placeholder="t('settings.agent_workspace_hint')" spellcheck="false" />
+            <button class="btn btn-ghost" @click="pickAgentWorkspace">{{ t('settings.choose') }}</button>
+            <button v-if="form.agentWorkspace" class="btn btn-ghost btn-icon" :title="t('settings.agent_workspace_clear')" @click="clearAgentWorkspace">
+              <Icon name="eraser" :size="16" />
+            </button>
+          </div>
+          <span class="hint">{{ t('settings.agent_workspace_home') }}</span>
         </div>
       </section>
 

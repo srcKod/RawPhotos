@@ -48,9 +48,26 @@ const showList = ref(true)
 let seed = 0
 const uid = () => `m${Date.now()}-${seed++}`
 
+// Agentic chat: tool-call cards + permission prompts streamed from the main process
+const agentPending = ref([]) // [{ callId, tool, display }]
+const unsubs = [] // IPC listeners removed when the view unmounts
+
 const CHAT_FILTER = /image|video|imagine|flux|sora|kling|dall|midjourney/i
 
 const providers = computed(() => store.settings.providers || [])
+
+// Agent workspace indicator: shows where agent file tools operate
+const agentWorkspace = computed(() => (store.settings.agentWorkspace || '').trim())
+const workspaceName = computed(() => {
+  const p = agentWorkspace.value
+  if (!p) return t('chat.ws_home')
+  const parts = p.replace(/[\\/]+$/, '').split(/[\\/]/)
+  return parts[parts.length - 1] || p
+})
+async function openWorkspace() {
+  if (!agentWorkspace.value) return
+  await window.api.openPath(agentWorkspace.value)
+}
 const providerOptions = computed(() =>
   providers.value.map((p) => ({ value: p.id, label: p.name || t('settings.unnamed_interface') }))
 )
@@ -68,25 +85,42 @@ const provider = computed(
 )
 const configured = computed(() => Boolean(provider.value && provider.value.baseUrl))
 
+// Chat-usable models: the fetched /models list with obvious image/video models filtered
+// out (avoids wrong-tool answers), merged with every model ID the user set manually in
+// Settings. Manual IDs are the user's responsibility — always offered as-is and
+// deduplicated against the endpoint list (kept at the front for visibility).
+const offeredChatModels = computed(() => {
+  const p = provider.value
+  const manual = [p?.optimizeModel, p?.imageModel, p?.videoModel].filter(Boolean)
+  const list = models.value.filter((m) => !CHAT_FILTER.test(m))
+  return [...new Set([...manual, ...list])]
+})
 const chatModel = computed({
-  get: () => store.settings.chatModel || provider.value?.optimizeModel || '',
+  // Auto-select chain: explicit pick > provider optimize field > first chat-capable
+  // fetched model (manual image/video IDs stay selectable in the list but are never
+  // auto-selected for chat).
+  get: () =>
+    store.settings.chatModel ||
+    provider.value?.optimizeModel ||
+    models.value.find((m) => !CHAT_FILTER.test(m)) ||
+    '',
   set: (v) => persistSettings({ chatModel: v })
 })
 const modelOptions = computed(() => {
   const cur = chatModel.value
-  // Chat usage: filter out obvious image/video models to avoid wrong-tool answers
-  let list = models.value.filter((m) => !CHAT_FILTER.test(m))
-  if (cur && !list.includes(cur)) list = [cur, ...list]
+  const list = [...offeredChatModels.value]
+  if (cur && !list.includes(cur)) list.unshift(cur)
   return list.map((m) => ({ value: m, label: m }))
 })
 
 function ensureChatModel() {
-  const cur = store.settings.chatModel
-  const filtered = models.value.filter((m) => !CHAT_FILTER.test(m))
-  if (cur && filtered.includes(cur)) return
-  const def = provider.value?.optimizeModel
-  const pick = def && filtered.includes(def) ? def : filtered[0]
-  if (pick) persistSettings({ chatModel: pick })
+  // Only drop an explicit pick the current provider cannot offer. Manual model IDs and
+  // fetched models are never overwritten — a provider with a partial /models catalog
+  // relies on manually set IDs staying usable (the user is responsible for them).
+  const g = store.settings.chatModel
+  if (!g) return
+  const offered = offeredChatModels.value
+  if (offered.length && !offered.includes(g)) persistSettings({ chatModel: '' })
 }
 
 function cleanError(msg) {
@@ -189,8 +223,75 @@ async function clearCurrent() {
 }
 
 function stop() {
+  // Main resolves any open permission waits as 'abort'; drop the cards here
+  agentPending.value = []
   window.api.chatAbort()
 }
+
+// ---- Agent streaming ----
+function toolSummary(m) {
+  const d = m.display || {}
+  return d.path || d.command || d.detail || ''
+}
+function onChatEvent(ev) {
+  if (!ev) return
+  if (ev.type === 'assistant') {
+    messages.value.push({ id: uid(), role: 'assistant', text: ev.text, reasoning: ev.reasoning, intermediate: true, images: [], files: [] })
+  } else if (ev.type === 'tool') {
+    const existing = messages.value.find((x) => x.id === ev.callId)
+    if (existing) {
+      existing.state = ev.state
+      existing.result = ev.result
+      existing.display = ev.display
+    } else {
+      messages.value.push({ id: ev.callId, role: 'tool', tool: ev.tool, display: ev.display || {}, state: ev.state, result: ev.result })
+    }
+  }
+  scrollDown()
+}
+function onPermission(req) {
+  if (!req || !req.callId) return
+  if (!agentPending.value.some((p) => p.callId === req.callId)) agentPending.value.push(req)
+  scrollDown()
+}
+async function decidePermission(callId, decision) {
+  agentPending.value = agentPending.value.filter((p) => p.callId !== callId)
+  try {
+    await window.api.agentConfirm(callId, decision)
+  } catch {
+    // window may be closing; main times the request out
+  }
+}
+
+// Collapsed-by-default reasoning ("thinking") blocks, keyed by message id
+const openThink = ref(new Set())
+function toggleThink(id) {
+  const s = openThink.value
+  if (s.has(id)) s.delete(id)
+  else s.add(id)
+}
+// Tool-call bubbles: collapsed by default, click the header to expand the raw result
+const openTools = ref(new Set())
+function toggleTool(id) {
+  const s = openTools.value
+  if (s.has(id)) s.delete(id)
+  else s.add(id)
+}
+// Tool permission mode: 'ask' = confirm every call, 'auto' = silently allow
+// read-only tools (list_dir/read_file), 'all' = never prompt. Persisted in
+// settings and enforced by the main process on every tool call.
+const toolModeOptions = computed(() => [
+  { value: 'ask', label: t('chat.tool_mode_ask') },
+  { value: 'auto', label: t('chat.tool_mode_auto') },
+  { value: 'all', label: t('chat.tool_mode_all') }
+])
+const toolMode = computed({
+  get: () => store.settings.chatToolMode || 'ask',
+  set: (v) => {
+    if (v === (store.settings.chatToolMode || 'ask')) return
+    persistSettings({ chatToolMode: v })
+  }
+})
 
 function buildMarkdown() {
   const lines = [
@@ -203,6 +304,7 @@ function buildMarkdown() {
     lines.push(m.role === 'user' ? t('chat.me') : t('chat.assistant'))
     if (m.files && m.files.length) lines.push(...m.files.map((f) => `📎 ${f.name}`))
     if (m.images && m.images.length) lines.push(`(${m.images.length} ${t('chat.images_unit')})`)
+    if (m.reasoning) lines.push('> ' + t('chat.thinking') + ':\n> ' + String(m.reasoning).split('\n').join('\n> '))
     lines.push('', m.text || '', '')
   }
   return lines.join('\n')
@@ -299,9 +401,12 @@ async function send() {
     const res = await window.api.chatSend({
       providerId: chatProviderId.value,
       model: chatModel.value,
-      messages: apiMessages
+      messages: apiMessages,
+      useTools: true
     })
-    messages.value.push({ id: uid(), role: 'assistant', text: res.content, images: [], files: [] })
+    const aMsg = { id: uid(), role: 'assistant', text: res.content, images: [], files: [] }
+    if (res.reasoning) aMsg.reasoning = res.reasoning
+    messages.value.push(aMsg)
   } catch (err) {
     const msg = cleanError(err.message)
     if (!/stopped|cancel/i.test(msg)) {
@@ -337,10 +442,15 @@ onMounted(async () => {
   // Auto-resume the most recent conversation on entry (previously each entry was blank,
   // making users believe history was lost)
   if (!currentId.value && convList.value.length) openConv(convList.value[0].id)
+  unsubs.push(window.api.onChatEvent(onChatEvent))
+  unsubs.push(window.api.onAgentPermission(onPermission))
 })
 
 // Switching tabs destroys this component (v-if), so persist once more on the way out
 onUnmounted(() => {
+  unsubs.forEach((u) => {
+    try { u() } catch { /* already gone */ }
+  })
   autoSave()
 })
 </script>
@@ -410,9 +520,25 @@ onUnmounted(() => {
 
           <div v-for="m in messages" :key="m.id" class="msg" :class="m.role">
             <div class="avatar" :class="m.role">
-              <Icon :name="m.role === 'user' ? 'group' : 'chat'" :size="15" />
+              <Icon :name="m.role === 'user' ? 'group' : (m.role === 'tool' ? 'logs' : 'chat')" :size="15" />
             </div>
-            <div class="bubble" :class="{ error: m.error }">
+            <div v-if="m.role === 'tool'" class="bubble tool-bubble" :class="[m.state, { open: openTools.has(m.id) }]">
+              <button class="tool-head" type="button" @click="toggleTool(m.id)">
+                <span class="tool-chev" :class="{ open: openTools.has(m.id) }">▸</span>
+                <span class="tool-kind">{{ m.tool || 'tool' }}</span>
+                <span class="tool-detail">{{ toolSummary(m) }}</span>
+                <span class="tool-state">{{ m.state === 'ok' ? '✓' : m.state === 'error' ? '✗' : m.state === 'denied' ? '⊘' : '…' }}</span>
+              </button>
+              <div v-show="openTools.has(m.id)" v-if="m.result && toolSummary(m) !== m.result" class="tool-result" dir="auto">{{ m.result }}</div>
+            </div>
+            <div v-else class="bubble" :class="{ error: m.error }">
+              <div v-if="m.reasoning" class="think">
+                <button class="think-head" type="button" @click="toggleThink(m.id)">
+                  <span class="think-chev" :class="{ open: openThink.has(m.id) }">▸</span>
+                  <span>{{ t('chat.thinking') }}</span>
+                </button>
+                <div v-show="openThink.has(m.id)" class="think-body" dir="auto">{{ m.reasoning }}</div>
+              </div>
               <div v-if="m.images && m.images.length" class="msg-imgs">
                 <img v-for="(im, i) in m.images" :key="i" :src="im" :alt="t('gallery.images')" />
               </div>
@@ -424,10 +550,11 @@ onUnmounted(() => {
               <div
                 v-if="m.role === 'assistant' && !m.error && m.text"
                 class="md-body"
+                dir="auto"
                 v-html="mdToHtml(m.text)"
                 @click="onMsgClick"
               ></div>
-              <p v-else-if="m.text" class="msg-text">{{ m.text }}</p>
+              <p v-else-if="m.text" class="msg-text" dir="auto">{{ m.text }}</p>
             </div>
             <button
               v-if="m.role === 'assistant' && !m.error && m.text"
@@ -439,6 +566,23 @@ onUnmounted(() => {
             </button>
           </div>
 
+          <!-- Permission cards: the agent paused mid-turn and waits for a decision -->
+          <div v-for="p in agentPending" :key="p.callId" class="msg assistant">
+            <div class="avatar assistant"><Icon name="logs" :size="15" /></div>
+            <div class="bubble perm-bubble">
+              <div class="perm-title"><Icon name="logs" :size="14" />{{ t('chat.tool_wants') }}</div>
+              <div class="perm-detail" dir="auto">
+                <b>{{ p.tool || 'tool' }}</b>
+                <span v-if="p.display && toolSummary(p)"> · {{ toolSummary(p) }}</span>
+              </div>
+              <div class="perm-actions">
+                <button class="perm-allow" @click="decidePermission(p.callId, true)">{{ t('chat.tool_allow') }}</button>
+                <button class="perm-always" @click="decidePermission(p.callId, 'always')">{{ t('chat.tool_always') }}</button>
+                <button class="perm-deny" @click="decidePermission(p.callId, false)">{{ t('chat.tool_deny') }}</button>
+              </div>
+            </div>
+          </div>
+
           <div v-if="sending" class="msg assistant">
             <div class="avatar assistant"><Icon name="chat" :size="15" /></div>
             <div class="bubble"><span class="typing"><i></i><i></i><i></i></span></div>
@@ -447,6 +591,15 @@ onUnmounted(() => {
 
         <div class="composer">
           <div class="composer-tools">
+            <span
+              class="ws-chip"
+              :class="{ clickable: agentWorkspace }"
+              :title="agentWorkspace || t('chat.ws_title')"
+              @click="openWorkspace"
+            >
+              <Icon name="folder" :size="13" />
+              <span class="ws-name">{{ workspaceName }}</span>
+            </span>
             <span class="ct-label">{{ t('settings.interface_config') }}</span>
             <div class="ct-prov">
               <Dropdown v-model="chatProviderId" :options="providerOptions" size="sm" :placeholder="t('chat.select_provider')" />
@@ -454,6 +607,10 @@ onUnmounted(() => {
             <span class="ct-label">{{ t('settings.model') }}</span>
             <div class="ct-model">
               <Dropdown v-model="chatModel" :options="modelOptions" size="sm" :placeholder="t('chat.select_model')" />
+            </div>
+            <span class="ct-label">{{ t('chat.tool_mode') }}</span>
+            <div class="ct-mode" :title="t('chat.tool_mode_hint')">
+              <Dropdown v-model="toolMode" :options="toolModeOptions" size="sm" />
             </div>
           </div>
           <div v-if="attachments.length" class="attach-row">
@@ -471,6 +628,7 @@ onUnmounted(() => {
             <textarea
               v-model="input"
               class="chat-input"
+              dir="auto"
               rows="1"
               :placeholder="configured ? t('chat.send_placeholder') : t('settings.not_configured')"
               :disabled="!configured || sending"
@@ -601,7 +759,7 @@ onUnmounted(() => {
   gap: 9px;
   padding: 9px 10px;
   border-radius: var(--radius-sm);
-  text-align: left;
+  text-align: start;
   color: var(--text-2);
   transition: background 0.12s ease, color 0.12s ease;
 }
@@ -768,6 +926,46 @@ onUnmounted(() => {
   word-break: break-word;
   user-select: text;
 }
+.think {
+  margin: 0 0 8px;
+}
+.think-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.think-head:hover {
+  color: var(--text-2);
+}
+.think-chev {
+  display: inline-block;
+  font-size: 10px;
+  transition: transform 0.15s ease;
+}
+.think-chev.open {
+  transform: rotate(90deg);
+}
+.think-body {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-3);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 260px;
+  overflow-y: auto;
+  user-select: text;
+}
 .msg-imgs {
   display: flex;
   flex-wrap: wrap;
@@ -929,11 +1127,39 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--text-3);
 }
+.ws-chip {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 320px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 12px;
+}
+.ws-chip.clickable {
+  cursor: pointer;
+}
+.ws-chip.clickable:hover {
+  color: var(--text-2);
+  border-color: var(--accent);
+}
+.ws-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .ct-prov {
-  width: 160px;
+  width: 150px;
 }
 .ct-model {
-  width: 220px;
+  width: 185px;
+}
+.ct-mode {
+  width: 150px;
 }
 .attach-row {
   display: flex;
@@ -1044,6 +1270,137 @@ onUnmounted(() => {
   cursor: not-allowed;
   box-shadow: none;
 }
+.msg.tool .bubble.tool-bubble {
+  padding: 6px 12px;
+  max-width: min(720px, 88%);
+  background: var(--surface-2, var(--surface));
+  /* slightly darker than a normal assistant bubble, theme-aware */
+  background: color-mix(in srgb, var(--surface) 88%, var(--text));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  border-top-left-radius: 4px;
+}
+/* executing tool calls: slightly dimmed with a soft accent glow pulse */
+.tool-bubble.running {
+  opacity: 0.72;
+  animation: tool-glow 1.6s ease-in-out infinite;
+}
+.tool-bubble.running:hover {
+  opacity: 1;
+}
+@keyframes tool-glow {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 10px 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+}
+.tool-bubble.denied .tool-state {
+  color: var(--text-3, inherit);
+  opacity: 0.8;
+}
+.tool-bubble .tool-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0.75;
+  min-width: 0;
+}
+.tool-bubble .tool-head:hover {
+  opacity: 1;
+}
+.tool-chev {
+  display: inline-block;
+  font-size: 10px;
+  transition: transform 0.15s ease;
+}
+.tool-chev.open {
+  transform: rotate(90deg);
+}
+.tool-bubble .tool-kind {
+  flex: none;
+  font-weight: 600;
+}
+.tool-bubble .tool-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  unicode-bidi: plaintext;
+}
+.tool-bubble .tool-state {
+  flex: none;
+  margin-left: auto;
+}
+.tool-bubble.ok .tool-state {
+  color: #34a853;
+}
+.tool-bubble.error .tool-state {
+  color: #ea4335;
+}
+.tool-bubble .tool-result {
+  margin-top: 5px;
+  font-size: 11px;
+  opacity: 0.66;
+  max-height: 84px;
+  overflow: auto;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.perm-bubble {
+  min-width: 250px;
+  max-width: min(560px, 88%);
+}
+.perm-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.perm-detail {
+  margin-top: 5px;
+  font-size: 11.5px;
+  opacity: 0.8;
+  word-break: break-word;
+}
+.perm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 9px;
+}
+.perm-actions button {
+  border: none;
+  border-radius: 7px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.perm-allow {
+  background: var(--accent, #4c8dff);
+  color: #fff;
+}
+.perm-always {
+  background: transparent;
+  color: var(--accent, #4c8dff);
+  border: 1px solid var(--accent, #4c8dff);
+}
+.perm-always:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.perm-deny {
+  background: var(--surface-2, rgba(127, 127, 127, 0.14));
+  color: inherit;
+}
+
 .send-btn.stop {
   background: var(--danger);
   box-shadow: none;

@@ -1,12 +1,17 @@
 import { app, shell, BrowserWindow, ipcMain, dialog, protocol, net, Tray, Menu, Notification } from 'electron'
-import { join } from 'node:path'
+import { join, isAbsolute, dirname } from 'node:path'
 import { promises as fs } from 'node:fs'
+import { spawn } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import icon from '../../resources/icon.png?asset'
 import { setLocale, m } from './i18n'
-
 let mainWindow = null
 let tray = null
+
+// Agentic chat: permission state shared between the chat loop and the renderer
+let agentAllowed = new Set() // tools pre-approved by the user this session ("Always")
+let agentCallSeq = 0
+let pendingPermissions = new Map() // callId -> resolve(decision) while a card is open
 
 // One interface config (one provider / one proxy instance). Image and video
 // models are separate fields because the same proxy often uses different model
@@ -44,7 +49,10 @@ const DEFAULT_SETTINGS = {
   chatModel: '',
   chatProviderId: '',
   alertEnabled: false,
-  alertThreshold: 5
+  alertThreshold: 5,
+  chatUseTools: true, // allow the chat model to call local agent tools (permission-gated)
+  chatToolMode: 'ask', // tool permission mode: 'ask' (every call) | 'auto' (read-only auto-allowed) | 'all' (no prompts)
+  agentWorkspace: '' // folder agent file/shell tools operate in (empty = home)
 }
 
 function settingsFile() {
@@ -390,6 +398,35 @@ function pushLog(entry) {
   return e
 }
 
+// ---- Agentic chat helpers: streaming events + renderer permission flow ----
+function emitChatEvent(event) {
+  mainWindow?.webContents?.send('chat:event', event)
+}
+
+function abortedError() {
+  const e = new Error('aborted')
+  e.aborted = true
+  return e
+}
+
+// Ask the renderer to show a permission card. Resolves 'allow' | 'always' | 'deny'
+// | 'abort' when the user clicks; auto-denies if no window or after 2 minutes.
+function requestPermissionFromRenderer(callId, tool, display) {
+  return new Promise((resolve) => {
+    const win = mainWindow
+    if (!win || win.isDestroyed()) return resolve('deny')
+    const timer = setTimeout(() => {
+      pendingPermissions.delete(callId)
+      resolve('deny')
+    }, 120000)
+    pendingPermissions.set(callId, (decision) => {
+      clearTimeout(timer)
+      resolve(decision)
+    })
+    win.webContents.send('agent:permission', { callId, tool, display })
+  })
+}
+
 // Cumulative usage stats: independent of the 300-entry log ring buffer;
 // long-term totals persisted to userData/rawphotos-usage.json
 function freshUsage() {
@@ -630,7 +667,199 @@ function registerIpc() {
     }
   })
 
-  // Desktop AI chat: forward the full messages array (vision content arrays supported) to /chat/completions
+  // ---- Agent tools: local file/shell access for the AI chat, permission-gated ----
+  // The model may call these tools in a loop; each call is gated by the
+  // chatToolMode setting ('ask' = permission card, 'auto' = read-only tools
+  // run silently, 'all' = no prompts) plus session-level "Always" approvals.
+  // Nothing runs without a decision from one of those layers.
+  const AGENT_MAX_ROUNDS = 20
+  const SAFE_TOOLS = new Set(['list_dir', 'read_file']) // read-only tools auto-allowed in 'auto' mode
+  let agentProc = null // child process of the last run_command (killable on stop)
+  const AGENT_TOOLS = [
+    {
+      type: 'function',
+      function: {
+        name: 'list_dir',
+        description: 'List files and folders in a directory. Relative paths resolve against the workspace folder.',
+        parameters: {
+          type: 'object',
+          properties: { path: { type: 'string', description: 'Directory path (relative to workspace or absolute)' } },
+          required: []
+        }
+      }
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'read_file',
+        description: 'Read a text file. Returns a window of lines; use offset/limit for large files. Binary files are reported with their size.',
+        parameters: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'File path (relative to workspace or absolute)' },
+            offset: { type: 'integer', description: '1-based line number to start from (default 1)' },
+            limit: { type: 'integer', description: 'Max lines to return (default 2000)' }
+          },
+          required: ['path']
+        }
+      }
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'write_file',
+        description: 'Create or overwrite a text file with UTF-8 content. Parent directories are created automatically.',
+        parameters: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'File path (relative to workspace or absolute)' },
+            content: { type: 'string', description: 'Full file content' }
+          },
+          required: ['path', 'content']
+        }
+      }
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'run_command',
+        description: 'Run a shell command in the workspace folder (cmd.exe on Windows, sh elsewhere). Returns exit code, stdout and stderr (truncated).',
+        parameters: {
+          type: 'object',
+          properties: {
+            command: { type: 'string', description: 'The command line to execute' },
+            timeout_seconds: { type: 'integer', description: 'Timeout in seconds (default 120, max 600)' }
+          },
+          required: ['command']
+        }
+      }
+    }
+  ]
+
+  function agentWorkspace(settings) {
+    return settings.agentWorkspace || app.getPath('home')
+  }
+
+  function resolveAgentPath(ws, p) {
+    const s = String(p || '').trim()
+    if (!s || s === '.') return ws
+    return isAbsolute(s) ? s : join(ws, s)
+  }
+
+  function truncText(s, limit) {
+    const str = String(s ?? '')
+    if (str.length <= limit) return str
+    return str.slice(0, Math.floor(limit * 0.75)) + `\n…[truncated ${str.length - limit} chars]…` + str.slice(-Math.floor(limit * 0.2))
+  }
+
+  function killProcTree(child) {
+    try {
+      if (process.platform === 'win32') spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true })
+      else child.kill('SIGKILL')
+    } catch {
+      try { child.kill() } catch {}
+    }
+  }
+
+  // Executes one tool call and returns a plain-text result for the model.
+  async function execAgentTool(ws, name, args, signal) {
+    if (signal?.aborted) throw new Error('Aborted')
+    if (name === 'list_dir') {
+      const dir = resolveAgentPath(ws, args.path)
+      const st = await fs.stat(dir).catch(() => null)
+      if (!st) throw new Error(`Not found: ${dir}`)
+      if (!st.isDirectory()) throw new Error(`Not a directory: ${dir}`)
+      const entries = await fs.readdir(dir, { withFileTypes: true })
+      entries.sort((a, b) => b.isDirectory() - a.isDirectory() || a.name.localeCompare(b.name))
+      const lines = entries.slice(0, 500).map((e) => (e.isDirectory() ? e.name + '/' : e.name))
+      if (entries.length > 500) lines.push(`… (+${entries.length - 500} more)`)
+      return (lines.join('\n') || '(empty directory)') + `\n(directory: ${dir})`
+    }
+    if (name === 'read_file') {
+      const file = resolveAgentPath(ws, args.path)
+      const st = await fs.stat(file).catch(() => null)
+      if (!st) throw new Error(`Not found: ${file}`)
+      if (st.isDirectory()) throw new Error(`Is a directory: ${file}`)
+      if (st.size > 2 * 1024 * 1024) throw new Error(`File too large to read (${st.size} bytes). If it is a text file, read it in parts using offset/limit.`)
+      const buf = await fs.readFile(file)
+      if (buf.subarray(0, 8192).includes(0)) return `[Binary file, ${st.size} bytes]`
+      const lines = buf.toString('utf8').split('\n')
+      const offset = Math.max(1, parseInt(args.offset, 10) || 1)
+      const limit = Math.min(4000, Math.max(1, parseInt(args.limit, 10) || 2000))
+      const slice = lines.slice(offset - 1, offset - 1 + limit)
+      return `${file} (lines ${offset}-${offset - 1 + slice.length} of ${lines.length})\n` + slice.join('\n')
+    }
+    if (name === 'write_file') {
+      const file = resolveAgentPath(ws, args.path)
+      const content = String(args.content ?? '')
+      if (content.length > 256 * 1024) throw new Error(`Content too large (${content.length} chars, max 262144). Split into multiple writes.`)
+      await fs.mkdir(dirname(file), { recursive: true })
+      await fs.writeFile(file, content, 'utf8')
+      return `Wrote ${content.length} chars to ${file}`
+    }
+    if (name === 'run_command') {
+      const command = String(args.command ?? '').trim()
+      if (!command) throw new Error('Empty command')
+      const timeoutSec = Math.min(600, Math.max(5, parseInt(args.timeout_seconds, 10) || 120))
+      const child = spawn(command, { shell: true, cwd: ws, windowsHide: true, env: process.env })
+      agentProc = child
+      let stdout = ''
+      let stderr = ''
+      let timedOut = false
+      child.stdout.on('data', (d) => { if (stdout.length < 200000) stdout += d.toString() })
+      child.stderr.on('data', (d) => { if (stderr.length < 200000) stderr += d.toString() })
+      const timer = setTimeout(() => { timedOut = true; killProcTree(child) }, timeoutSec * 1000)
+      const code = await new Promise((resolve) => {
+        child.on('close', (c) => resolve(c))
+        child.on('error', (e) => { stderr += String(e?.message || e); resolve(-1) })
+      })
+      clearTimeout(timer)
+      if (agentProc === child) agentProc = null
+      const parts = [`exit code: ${code}${timedOut ? ' (timed out and was killed)' : ''}`]
+      if (stdout.trim()) parts.push(`--- stdout ---\n${truncText(stdout, 8000)}`)
+      if (stderr.trim()) parts.push(`--- stderr ---\n${truncText(stderr, 8000)}`)
+      return parts.join('\n')
+    }
+    throw new Error(`Unknown tool: ${name}`)
+  }
+
+  // Compact description shown on the permission card and tool cards.
+  function permissionDisplay(ws, tool, args = {}) {
+    const abs = (p) => resolveAgentPath(ws, p)
+    if (tool === 'list_dir') return { path: abs(args.path) }
+    if (tool === 'read_file') return { path: abs(args.path), detail: args.offset ? `from line ${args.offset}` : '' }
+    if (tool === 'write_file') return { path: abs(args.path), detail: `${String(args.content ?? '').length} chars` }
+    if (tool === 'run_command') return { command: String(args.command ?? ''), cwd: ws }
+    return {}
+  }
+
+  function agentSystemPrompt(ws) {
+    return [
+      'You are an AI assistant inside the RawPhotos desktop app with local agent tools.',
+      `Workspace folder (file tools and shell commands run here): ${ws}`,
+      'Relative paths in tool calls resolve against the workspace folder.',
+      'Guidelines: list files before guessing paths; read a file before rewriting it; prefer small, reversible steps; never run destructive commands without a clear reason; if a command fails, read the error and adjust.',
+      'After the tools finish, answer the user concisely in the same language they used.'
+    ].join('\n')
+  }
+
+  function pickMessageContent(message) {
+    const raw = message?.content
+    let text = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw.map((c) => c?.text || '').join('') : raw == null ? '' : String(raw)
+    let reasoning = ''
+    const rc = message?.reasoning_content ?? message?.reasoning
+    if (typeof rc === 'string' && rc.trim()) reasoning = rc.trim()
+    text = text.replace(/think[\s\S]*?(<\/think>|$)/gi, (_s, inner) => {
+      const chunk = inner.trim()
+      if (chunk) reasoning = reasoning ? reasoning + '\n\n' + chunk : chunk
+      return ''
+    })
+    return { text: text.trim(), reasoning }
+  }
+
+  // Desktop AI chat: agentic loop. The model can call local tools (list files,
+  // read/write files, run shell commands); every tool call is permission-gated
+  // in the renderer (Allow / Always for this session / Deny).
   ipcMain.handle('chat:send', async (_e, payload = {}) => {
     const settings = await readSettings()
     const provider =
@@ -638,6 +867,8 @@ function registerIpc() {
       activeProvider(settings)
     const baseUrl = normalizeBaseUrl(provider.baseUrl)
     const model = payload.model || provider.optimizeModel
+    // Agent mode: enabled per request (payload.useTools) unless disabled in settings
+    const useTools = payload.useTools !== false && settings.chatUseTools !== false
     const url = `${baseUrl}/chat/completions`
     const t0 = Date.now()
     const ctrl = new AbortController()
@@ -645,26 +876,85 @@ function registerIpc() {
     try {
       if (!baseUrl) throw new Error(m('main.err_no_endpoint'))
       if (!model) throw new Error(m('main.err_pick_chat_model'))
-      const messages = Array.isArray(payload.messages) ? payload.messages : []
-      if (!messages.length) throw new Error(m('main.err_no_messages'))
+      const history = Array.isArray(payload.messages) ? payload.messages : []
+      if (!history.length) throw new Error(m('main.err_no_messages'))
 
-      const { json } = await requestJson(url, {
-        method: 'POST',
-        apiKey: provider.apiKey,
-        body: { model, messages, temperature: payload.temperature ?? 0.7 },
-        timeoutMs: 120000,
-        signal: ctrl.signal
-      })
-      const content = json?.choices?.[0]?.message?.content
-      if (content == null) throw new Error(m('main.err_no_content'))
-      const text =
-        typeof content === 'string'
-          ? content
-          : Array.isArray(content)
-            ? content.map((c) => c?.text || '').join('')
-            : String(content)
-      pushLog({ kind: 'chat', ok: true, provider: provider.name, model, url, status: 200, durationMs: Date.now() - t0, message: m('main.log_chat_ok') })
-      return { content: text }
+      const ws = agentWorkspace(settings)
+      const protocol = useTools
+        ? [{ role: 'system', content: agentSystemPrompt(ws) }, ...history]
+        : [...history]
+
+      for (let round = 0; round < AGENT_MAX_ROUNDS; round++) {
+        if (ctrl.signal.aborted) throw abortedError()
+        const body = { model, messages: protocol, temperature: payload.temperature ?? 0.7 }
+        if (useTools) body.tools = AGENT_TOOLS
+        const { json } = await requestJson(url, {
+          method: 'POST',
+          apiKey: provider.apiKey,
+          body,
+          timeoutMs: 180000,
+          signal: ctrl.signal
+        })
+        const message = json?.choices?.[0]?.message
+        const { text, reasoning } = pickMessageContent(message)
+        const toolCalls = Array.isArray(message?.tool_calls) ? message.tool_calls : []
+
+        // No tool calls -> final answer
+        if (!useTools || !toolCalls.length) {
+          if (!text) throw new Error(m('main.err_no_content'))
+          pushLog({ kind: 'chat', ok: true, provider: provider.name, model, url, status: 200, durationMs: Date.now() - t0, message: m('main.log_chat_ok') })
+          return reasoning ? { content: text, reasoning } : { content: text }
+        }
+
+        // Assistant text that came before the tool calls is surfaced in the
+        // renderer timeline as an intermediate message.
+        if (text) emitChatEvent({ type: 'assistant', text, reasoning })
+        protocol.push({ role: 'assistant', content: message?.content ?? '', tool_calls: toolCalls })
+
+        for (const tc of toolCalls) {
+          if (ctrl.signal.aborted) throw abortedError()
+          const name = String(tc?.function?.name || '')
+          let args = {}
+          try { args = JSON.parse(tc?.function?.arguments || '{}') || {} } catch { args = {} }
+          const callId = String(tc?.id || `call_${Date.now()}_${agentCallSeq++}`)
+          const display = permissionDisplay(ws, name, args)
+
+          // Permission decision layers (most permissive wins):
+          // 1. session-level "Always" approvals  2. the chatToolMode setting
+          //    ('all' = no prompts, 'auto' = read-only tools run silently)
+          // 3. otherwise ask via the renderer permission card.
+          const mode = settings.chatToolMode === 'auto' || settings.chatToolMode === 'all' ? settings.chatToolMode : 'ask'
+          let decision
+          if (agentAllowed.has(name) || mode === 'all' || (mode === 'auto' && SAFE_TOOLS.has(name))) decision = 'allow'
+          else decision = await requestPermissionFromRenderer(callId, name, display)
+          if (decision === 'always') agentAllowed.add(name)
+          if (decision === 'abort') throw abortedError()
+
+          if (decision === 'deny') {
+            emitChatEvent({ type: 'tool', callId, tool: name, display, state: 'denied' })
+            protocol.push({ role: 'tool', tool_call_id: callId, content: 'The user denied permission for this action. Continue without it or ask the user what to do next.' })
+            pushLog({ kind: 'agent', ok: false, provider: provider.name, model, message: m('main.log_agent_denied', { tool: name }) })
+            continue
+          }
+
+          emitChatEvent({ type: 'tool', callId, tool: name, display, state: 'running' })
+          const r0 = Date.now()
+          let resultText
+          let ok = true
+          try {
+            resultText = await execAgentTool(ws, name, args, ctrl.signal)
+          } catch (err) {
+            ok = false
+            resultText = `Error: ${err.message}`
+          }
+          pushLog({ kind: 'agent', ok, provider: provider.name, model, durationMs: Date.now() - r0, message: m(ok ? 'main.log_agent_run' : 'main.log_agent_failed', { tool: name }) })
+          emitChatEvent({ type: 'tool', callId, tool: name, display, state: ok ? 'ok' : 'error', result: resultText })
+          protocol.push({ role: 'tool', tool_call_id: callId, content: resultText })
+        }
+      }
+      // Step limit reached without a final answer
+      pushLog({ kind: 'chat', ok: true, provider: provider.name, model, url, durationMs: Date.now() - t0, message: m('main.log_agent_limit') })
+      return { content: m('main.agent_max_rounds', { count: AGENT_MAX_ROUNDS }) }
     } catch (err) {
       if (ctrl.userAborted) {
         pushLog({ kind: 'chat', ok: false, provider: provider.name, model, url, durationMs: Date.now() - t0, message: m('main.log_stopped') })
@@ -683,6 +973,21 @@ function registerIpc() {
     if (activeChatAbort) {
       activeChatAbort.userAborted = true
       activeChatAbort.abort()
+    }
+    // Resolve any open permission waits so the renderer's cards can clear
+    for (const [, res] of pendingPermissions) {
+      try { res('abort') } catch { /* already resolved */ }
+    }
+    pendingPermissions.clear()
+    return true
+  })
+
+  // User decision on an agent permission card: 'allow' | 'always' | 'deny' | 'abort'
+  ipcMain.handle('agent:confirm', (_e, callId, decision) => {
+    const res = pendingPermissions.get(String(callId))
+    if (res) {
+      pendingPermissions.delete(String(callId))
+      res(String(decision || 'deny'))
     }
     return true
   })
