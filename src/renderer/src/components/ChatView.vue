@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { marked } from 'marked'
 import { store, persistSettings, activeProvider } from '../store'
@@ -31,6 +32,7 @@ function onMsgClick(e) {
   }
 }
 
+const { t } = useI18n()
 const messages = ref([]) // { id, role, text, images:[dataUrl], files:[{name}], error? }
 const input = ref('')
 const attachments = ref([])
@@ -50,9 +52,9 @@ const CHAT_FILTER = /image|video|imagine|flux|sora|kling|dall|midjourney/i
 
 const providers = computed(() => store.settings.providers || [])
 const providerOptions = computed(() =>
-  providers.value.map((p) => ({ value: p.id, label: p.name || '未命名接口' }))
+  providers.value.map((p) => ({ value: p.id, label: p.name || t('settings.unnamed_interface') }))
 )
-// 对话可独立选接口/分组（与生成页的「当前接口」分开）
+// Chat picks its own provider/model (independent from the generate view's "current interface")
 const chatProviderId = computed({
   get: () => store.settings.chatProviderId || store.settings.activeProviderId,
   set: async (id) => {
@@ -72,7 +74,7 @@ const chatModel = computed({
 })
 const modelOptions = computed(() => {
   const cur = chatModel.value
-  // 对话用：过滤掉明显的图片/视频模型，避免误选导致答非所问
+  // Chat usage: filter out obvious image/video models to avoid wrong-tool answers
   let list = models.value.filter((m) => !CHAT_FILTER.test(m))
   if (cur && !list.includes(cur)) list = [cur, ...list]
   return list.map((m) => ({ value: m, label: m }))
@@ -88,7 +90,7 @@ function ensureChatModel() {
 }
 
 function cleanError(msg) {
-  return String(msg || '出错了').replace(/^Error invoking remote method '[^']+':\s*Error:\s*/, '')
+  return String(msg || t('chat.export_failed')).replace(/^Error invoking remote method '[^']+':\s*Error:\s*/, '')
 }
 function fmtTime(ms) {
   if (!ms) return ''
@@ -122,21 +124,22 @@ async function autoSave() {
   if (!messages.value.length) return
   if (!currentId.value) currentId.value = `c${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
   const firstUser = messages.value.find((m) => m.role === 'user')
-  const title = ((firstUser && firstUser.text) || '新对话').slice(0, 24) || '新对话'
+  const title = ((firstUser && firstUser.text) || t('chat.new_conv_export')).slice(0, 24) || t('chat.new_conv_export')
   try {
-    // 必须剥掉 Vue reactive 代理再过 IPC：Proxy 无法被 Electron 序列化，
-    // 直接传会抛 "object could not be cloned" 被下面 catch 吞掉 → 历史永远存不上（曾致命）
+    // Must strip the Vue reactive proxy before IPC: Proxy cannot be structured-cloned by Electron,
+    // the direct pass would throw "object could not be cloned", get swallowed by the catch below,
+    // and history would never persist (this was once a fatal bug)
     const plain = JSON.parse(JSON.stringify({ id: currentId.value, title, messages: messages.value }))
     await window.api.chatsSave(plain)
     loadConvList()
   } catch {
-    // 保存失败不打断对话
+    // save failure must not interrupt the conversation
   }
 }
 
 async function openConv(id) {
   if (id === currentId.value) return
-  if (messages.value.length) await autoSave() // 切走前先存当前
+  if (messages.value.length) await autoSave() // save current chat before switching
   try {
     const c = await window.api.chatsGet(id)
     if (!c) return
@@ -144,7 +147,7 @@ async function openConv(id) {
     currentId.value = id
     scrollDown()
   } catch {
-    toast.error('打开对话失败')
+    toast.error(t('chat.open_failed'))
   }
 }
 
@@ -154,7 +157,7 @@ async function deleteConv(id) {
     if (id === currentId.value) newChat()
     loadConvList()
   } catch {
-    toast.error('删除失败')
+    toast.error(t('chat.delete_failed'))
   }
 }
 
@@ -166,7 +169,7 @@ function resetChat() {
 }
 
 async function newChat() {
-  if (messages.value.length) await autoSave() // 开新对话前，把当前这段存进历史
+  if (messages.value.length) await autoSave() // save current chat into history before starting a new one
   resetChat()
   loadConvList()
 }
@@ -177,12 +180,12 @@ async function clearCurrent() {
     try {
       await window.api.chatsDelete(currentId.value)
     } catch {
-      // 忽略
+      // ignore
     }
     loadConvList()
   }
   resetChat()
-  toast.success('已清空当前对话')
+  toast.success(t('chat.cleared'))
 }
 
 function stop() {
@@ -191,15 +194,15 @@ function stop() {
 
 function buildMarkdown() {
   const lines = [
-    '# 对话记录',
+    `# ${t('chat.export_title')}`,
     '',
-    `> 模型：${chatModel.value || '-'} · 导出时间：${new Date().toLocaleString()}`,
+    t('chat.model') + ': ' + (chatModel.value || '-') + ' · ' + t('chat.export_time') + ': ' + new Date().toLocaleString(),
     ''
   ]
   for (const m of messages.value) {
-    lines.push(m.role === 'user' ? '## 🧑 我' : '## 🤖 助手')
+    lines.push(m.role === 'user' ? t('chat.me') : t('chat.assistant'))
     if (m.files && m.files.length) lines.push(...m.files.map((f) => `📎 ${f.name}`))
-    if (m.images && m.images.length) lines.push(`（含 ${m.images.length} 张图片）`)
+    if (m.images && m.images.length) lines.push(`(${m.images.length} ${t('chat.images_unit')})`)
     lines.push('', m.text || '', '')
   }
   return lines.join('\n')
@@ -207,16 +210,16 @@ function buildMarkdown() {
 
 async function exportMd() {
   if (!messages.value.length) {
-    toast.error('当前没有对话内容')
+    toast.error(t('chat.no_content'))
     return
   }
   const firstUser = messages.value.find((m) => m.role === 'user')
-  const base = ((firstUser && firstUser.text) || '对话').slice(0, 16).replace(/[\\/:*?"<>|\n]/g, '_')
+  const base = ((firstUser && firstUser.text) || t('chat.base_name_default')).slice(0, 16).replace(/[\\/:*?"<>|\n]/g, '_')
   try {
     const res = await window.api.saveTextFile({ content: buildMarkdown(), defaultName: `chat-${base}.md` })
-    if (!res.canceled) toast.success(`已导出 ${res.path}`)
+    if (!res.canceled) toast.success(t('chat.export_success') + ' ' + res.path)
   } catch (err) {
-    toast.error(`导出失败：${cleanError(err.message)}`)
+    toast.error(`${t('chat.export_failed')}: ${cleanError(err.message)}`)
   }
 }
 
@@ -239,7 +242,7 @@ function onPickFile(e) {
       r.onload = () => attachments.value.push({ kind: 'text', name: file.name, text: String(r.result || '').slice(0, 20000) })
       r.readAsText(file)
     } else {
-      toast.error(`不支持或过大的文件（文本需 ≤256KB）：${file.name}`)
+      toast.error(`${t('chat.unsupported_file')}: ${file.name}`)
     }
   }
 }
@@ -261,11 +264,11 @@ function toApiMessage(m, overrideText) {
 
 async function send() {
   if (!configured.value) {
-    toast.error('请先在设置中配置接口')
+    toast.error(t('settings.not_configured'))
     return
   }
   if (!chatModel.value) {
-    toast.error('请先选择对话模型')
+    toast.error(t('chat.no_model'))
     return
   }
   const text = input.value.trim()
@@ -281,7 +284,7 @@ async function send() {
     files: textFiles.map((a) => ({ name: a.name }))
   }
   let apiText = text
-  for (const a of textFiles) apiText += `\n\n[文件 ${a.name}]\n${a.text}`
+  for (const a of textFiles) apiText += `\n\n[${t('chat.file_tag')} ${a.name}]\n${a.text}`
 
   messages.value.push(userMsg)
   input.value = ''
@@ -301,7 +304,7 @@ async function send() {
     messages.value.push({ id: uid(), role: 'assistant', text: res.content, images: [], files: [] })
   } catch (err) {
     const msg = cleanError(err.message)
-    if (!/已停止/.test(msg)) {
+    if (!/stopped|cancel/i.test(msg)) {
       messages.value.push({ id: uid(), role: 'assistant', text: msg, images: [], files: [], error: true })
     }
   } finally {
@@ -314,9 +317,9 @@ async function send() {
 async function copyMsg(m) {
   try {
     await navigator.clipboard.writeText(m.text || '')
-    toast.success('已复制')
+    toast.success(t('chat.copied'))
   } catch {
-    toast.error('复制失败')
+    toast.error(t('toast.copy_failed'))
   }
 }
 
@@ -331,11 +334,12 @@ onMounted(async () => {
   await loadModels()
   ensureChatModel()
   await loadConvList()
-  // 进来自动接上最近一次会话（原来每次进页都是空白，用户以为历史丢了）
+  // Auto-resume the most recent conversation on entry (previously each entry was blank,
+  // making users believe history was lost)
   if (!currentId.value && convList.value.length) openConv(convList.value[0].id)
 })
 
-// 切到其他页签组件会被销毁（v-if），离开前兜底存一次
+// Switching tabs destroys this component (v-if), so persist once more on the way out
 onUnmounted(() => {
   autoSave()
 })
@@ -345,19 +349,19 @@ onUnmounted(() => {
   <div class="view">
     <header class="view-head">
       <div class="head-left">
-        <button class="ghost-icon" :class="{ on: showList }" title="历史对话" @click="showList = !showList">
+        <button class="ghost-icon" :class="{ on: showList }" :title="t('chat.history')" @click="showList = !showList">
           <Icon name="logs" :size="17" />
         </button>
         <div class="head-title">
-          <h1>AI 对话</h1>
-          <p class="sub">和配置的模型聊天，可上传图片 / 文本文件</p>
+          <h1>{{ t('chat.title') }}</h1>
+          <p class="sub">{{ t('chat.chat_with') }}</p>
         </div>
       </div>
       <div class="head-right">
-        <button class="ghost-icon" title="导出为 Markdown" :disabled="!messages.length" @click="exportMd">
+        <button class="ghost-icon" :title="t('chat.export_markdown')" :disabled="!messages.length" @click="exportMd">
           <Icon name="download" :size="16" />
         </button>
-        <button class="ghost-icon" title="清空当前对话" @click="clearCurrent">
+        <button class="ghost-icon" :title="t('chat.clear_current')" @click="clearCurrent">
           <Icon name="eraser" :size="16" />
         </button>
       </div>
@@ -366,7 +370,7 @@ onUnmounted(() => {
     <div class="chat-body">
       <aside v-if="showList" class="conv-list">
         <button class="new-conv" @click="newChat">
-          <Icon name="plus" :size="15" /><span>新对话</span>
+          <Icon name="plus" :size="15" /><span>{{ t('chat.new_chat') }}</span>
         </button>
         <div class="conv-scroll">
           <button
@@ -378,17 +382,17 @@ onUnmounted(() => {
           >
             <Icon name="chat" :size="14" class="conv-ic" />
             <span class="conv-main">
-              <span class="conv-title">{{ c.title || '新对话' }}</span>
-              <span class="conv-meta">{{ fmtTime(c.updatedAt) }} · {{ c.count }} 条</span>
+              <span class="conv-title">{{ c.title || t('chat.new_chat') }}</span>
+              <span class="conv-meta">{{ fmtTime(c.updatedAt) }} · {{ c.count }} {{ t('chat.entries') }}</span>
             </span>
-            <span class="conv-del" title="删除" @click.stop="deleteConv(c.id)">
+            <span class="conv-del" :title="t('chat.delete')" @click.stop="deleteConv(c.id)">
               <Icon name="trash" :size="13" />
             </span>
           </button>
           <div v-if="!convList.length" class="conv-empty">
             <Icon name="chat" :size="20" />
-            <span>还没有历史对话</span>
-            <small>聊过的会自动保存在这里</small>
+            <span>{{ t('chat.empty_title') }}</span>
+            <small>{{ t('chat.empty_sub') }}</small>
           </div>
         </div>
       </aside>
@@ -397,10 +401,10 @@ onUnmounted(() => {
         <div ref="scroller" class="messages">
           <div v-if="!messages.length" class="empty">
             <div class="empty-art"><Icon name="chat" :size="34" /></div>
-            <p class="empty-title">开始对话</p>
+            <p class="empty-title">{{ t('chat.start_title') }}</p>
             <p class="empty-sub">
-              当前模型：<b>{{ chatModel || '未选择（右上角选一个）' }}</b><br />
-              可上传文本文件；图片需所选模型支持视觉 · 历史自动保存
+              {{ t('chat.current_model') }}:<b>{{ chatModel || t('chat.no_model_selected') }}</b><br />
+              {{ t('chat.upload_tip') }}
             </p>
           </div>
 
@@ -410,7 +414,7 @@ onUnmounted(() => {
             </div>
             <div class="bubble" :class="{ error: m.error }">
               <div v-if="m.images && m.images.length" class="msg-imgs">
-                <img v-for="(im, i) in m.images" :key="i" :src="im" alt="图片" />
+                <img v-for="(im, i) in m.images" :key="i" :src="im" :alt="t('gallery.images')" />
               </div>
               <div v-if="m.files && m.files.length" class="msg-files">
                 <span v-for="(f, i) in m.files" :key="i" class="file-chip">
@@ -428,7 +432,7 @@ onUnmounted(() => {
             <button
               v-if="m.role === 'assistant' && !m.error && m.text"
               class="copy-out"
-              title="复制"
+              :title="t('toast.copied')"
               @click="copyMsg(m)"
             >
               <Icon name="copy" :size="14" />
@@ -443,13 +447,13 @@ onUnmounted(() => {
 
         <div class="composer">
           <div class="composer-tools">
-            <span class="ct-label">接口</span>
+            <span class="ct-label">{{ t('settings.interface_config') }}</span>
             <div class="ct-prov">
-              <Dropdown v-model="chatProviderId" :options="providerOptions" size="sm" placeholder="选择接口" />
+              <Dropdown v-model="chatProviderId" :options="providerOptions" size="sm" :placeholder="t('chat.select_provider')" />
             </div>
-            <span class="ct-label">模型</span>
+            <span class="ct-label">{{ t('settings.model') }}</span>
             <div class="ct-model">
-              <Dropdown v-model="chatModel" :options="modelOptions" size="sm" placeholder="选择模型" />
+              <Dropdown v-model="chatModel" :options="modelOptions" size="sm" :placeholder="t('chat.select_model')" />
             </div>
           </div>
           <div v-if="attachments.length" class="attach-row">
@@ -461,18 +465,18 @@ onUnmounted(() => {
           </div>
           <div class="composer-main">
             <input ref="fileInput" type="file" multiple accept="image/*,.txt,.md,.json,.csv,.log,.js,.ts,.py,.html,.css,.xml,.yml,.yaml" hidden @change="onPickFile" />
-            <button class="attach-btn" title="上传图片 / 文本文件" :disabled="!configured" @click="fileInput && fileInput.click()">
+            <button class="attach-btn" :title="t('chat.file_tag')" :disabled="!configured" @click="fileInput && fileInput.click()">
               <Icon name="image" :size="18" />
             </button>
             <textarea
               v-model="input"
               class="chat-input"
               rows="1"
-              :placeholder="configured ? '输入消息，Enter 发送，Shift+Enter 换行' : '请先到设置配置接口'"
+              :placeholder="configured ? t('chat.send_placeholder') : t('settings.not_configured')"
               :disabled="!configured || sending"
               @keydown="onKeydown"
             ></textarea>
-            <button v-if="sending" class="send-btn stop" title="停止生成" @click="stop">
+            <button v-if="sending" class="send-btn stop" :title="t('chat.stop_generating')" @click="stop">
               <Icon name="stop" :size="18" />
             </button>
             <button
@@ -789,7 +793,7 @@ onUnmounted(() => {
   font-size: 11.5px;
   padding: 3px 8px;
   border-radius: 999px;
-  /* 跟随气泡文字色打底，深浅主题的 accent 气泡上都可见 */
+  /* Follows the bubble text color as a base; visible on accent bubbles in both light and dark themes */
   background: color-mix(in srgb, currentColor 16%, transparent);
 }
 .msg.assistant .file-chip {

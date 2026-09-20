@@ -1,4 +1,5 @@
-/* 默认主题 = 晴绿（浅白 + 青绿，清爽阳光）。组件全用 var(--token)，切换只换调色板 */
+/* Default theme = Clear Green (near-white + teal-green, fresh and sunny).
+   Components consume var(--token) only; switching a theme just swaps the palette */
 :root {
   --bg: #f2f7f4;
   --bg-1: #ffffff;
@@ -16,7 +17,7 @@
   --accent-soft: rgba(13, 148, 136, 0.12);
   --accent-line: rgba(13, 148, 136, 0.5);
   --ring: rgba(13, 148, 136, 0.4);
-  --on-accent: #ffffff; /* 强调色底上的文字/图标色（深色主题的亮 accent 上要用深字） */
+  --on-accent: #ffffff; /* text/icon color on accent backgrounds (bright accents in the dark theme need dark text) */
   --success: #059669;
   --danger: #e11d48;
   --warn: #d97706;
@@ -34,7 +35,7 @@
   font-size: 14px;
 }
 
-/* 海盐（浅白 + 天青蓝，另一种清爽浅色） */
+/* Sea Salt (near-white + sky blue, another fresh light palette) */
 [data-theme='sky'] {
   --bg: #eef4fb;
   --bg-1: #ffffff;
@@ -63,7 +64,7 @@
   --shadow-sm: 0 4px 16px rgba(15, 42, 70, 0.08);
 }
 
-/* 曜夜（2026-07 重做：中性蓝灰深底 + 柔蓝 accent，原墨绿版用户嫌丑已废弃） */
+/* Moonlight (2026-07 rework: neutral blue-gray dark base + soft blue accent; the old dark-green version was scrapped) */
 [data-theme='dark'] {
   --bg: #0e1116;
   --bg-1: #131824;
@@ -81,7 +82,7 @@
   --accent-soft: rgba(110, 168, 254, 0.14);
   --accent-line: rgba(110, 168, 254, 0.42);
   --ring: rgba(110, 168, 254, 0.4);
-  /* 柔蓝 accent 偏亮，上面放白字对比不足，用深字 */
+  /* The soft blue accent is bright; white text on it lacks contrast, so use dark text */
   --on-accent: #0a1526;
   --success: #4ade80;
   --danger: #fb7185;
@@ -93,7 +94,7 @@
   --scroll-thumb-hover: rgba(148, 168, 200, 0.3);
 }
 
-/* 自定义（中性浅色底，强调色由 applyTheme 按取色器内联注入 --accent 等） */
+/* Custom (neutral light base; applyTheme injects --accent etc. inline from the color picker) */
 [data-theme='custom'] {
   --bg: #f4f5f7;
   --bg-1: #ffffff;
@@ -112,7 +113,7 @@
   --accent-line: rgba(16, 185, 129, 0.5);
   --ring: rgba(16, 185, 129, 0.4);
   --accent-glow: rgba(16, 185, 129, 0.25);
-  --on-accent: #ffffff; /* custom 主题由 applyTheme 按取色亮度动态覆盖 */
+  --on-accent: #ffffff; /* the custom theme's on-accent color is overridden dynamically by applyTheme based on picked brightness */
   --success: #059669;
   --danger: #e11d48;
   --warn: #d97706;
@@ -183,7 +184,7 @@ h3 {
   display: block;
 }
 
-/* ---------- 按钮 ---------- */
+/* ---------- Buttons ---------- */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -238,7 +239,7 @@ h3 {
   padding: 0;
 }
 
-/* ---------- 表单 ---------- */
+/* ---------- Forms ---------- */
 .field {
   display: flex;
   flex-direction: column;
@@ -288,7 +289,7 @@ h3 {
   cursor: pointer;
 }
 
-/* ---------- 通用 ---------- */
+/* ---------- Common ---------- */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -324,7 +325,8 @@ h3 {
 .spin {
   width: 15px;
   height: 15px;
-  /* 跟随所在按钮的文字色：普通按钮上也可见（原先固定白色在浅色主题的普通按钮里看不见） */
+  /* Follows the parent button's text color so it stays visible on regular buttons too
+     (the old fixed white was invisible on light-theme regular buttons) */
   border: 2px solid color-mix(in srgb, currentColor 28%, transparent);
   border-top-color: currentColor;
   border-radius: 50%;

@@ -1,19 +1,21 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { ref, onMounted, onUnmounted } from 'vue'
 import { toast } from '../composables/useToast'
 import Icon from './Icon.vue'
 
+const { t } = useI18n()
 const logs = ref([])
 const loading = ref(false)
 const expanded = ref(null)
 let off = null
 
 const KIND = {
-  image: '图片',
-  video: '视频',
-  optimize: '优化',
-  chat: '对话',
-  test: '测试'
+  image: 'logs.type_image',
+  video: 'logs.type_video',
+  optimize: 'logs.type_optimize',
+  chat: 'logs.type_chat',
+  test: 'logs.type_test'
 }
 
 function fmtTime(ms) {
@@ -27,7 +29,7 @@ async function refresh() {
   try {
     logs.value = await window.api.getLogs()
   } catch (err) {
-    toast.error(`读取日志失败：${err.message}`)
+    toast.error(t('logs.read_failed') + ': ' + err.message)
   } finally {
     loading.value = false
   }
@@ -38,18 +40,18 @@ async function clear() {
     await window.api.clearLogs()
     logs.value = []
     expanded.value = null
-    toast.success('日志已清空')
+    toast.success(t('logs.cleared'))
   } catch (err) {
-    toast.error(`清空失败：${err.message}`)
+    toast.error(t('logs.clear_failed') + ': ' + err.message)
   }
 }
 
 async function openFile() {
   try {
     const f = await window.api.openLogFile()
-    toast.info(`已打开 ${f}`)
+    toast.info(t('logs.opened') + ' ' + f)
   } catch (err) {
-    toast.error(`打开失败：${err.message}`)
+    toast.error(t('logs.open_failed') + ': ' + err.message)
   }
 }
 
@@ -59,19 +61,19 @@ function toggle(id) {
 
 async function copyDetail(e) {
   const lines = [
-    `时间：${new Date(e.time).toLocaleString()}`,
-    `类型：${KIND[e.kind] || e.kind} · ${e.ok ? '成功' : '失败'}`,
-    `接口：${e.provider || '-'} · 模型 ${e.model || '-'}`,
-    `URL：${e.url || '-'}`,
-    `HTTP：${e.status ?? '-'} · 耗时 ${e.durationMs ?? '-'}ms`,
-    `信息：${e.message || '-'}`,
-    e.detail ? `原始返回：\n${e.detail}` : ''
+    `${t('logs.time')}: ${new Date(e.time).toLocaleString()}`,
+    `${t('logs.type')}: ${t(KIND[e.kind] || e.kind)} · ${e.ok ? t('logs.success') : t('logs.failed')}`,
+    `${t('settings.interface_config')}: ${e.provider || '-'} · ${t('settings.model')} ${e.model || '-'}`,
+    `URL: ${e.url || '-'}`,
+    `${t('logs.http')}: ${e.status ?? '-'} · ${t('logs.duration')}: ${e.durationMs ?? '-'}ms`,
+    `${t('logs.info')}: ${e.message || '-'}`,
+    e.detail ? `${t('logs.raw_head')}:\n${e.detail}` : ''
   ]
   try {
     await navigator.clipboard.writeText(lines.filter(Boolean).join('\n'))
-    toast.success('已复制该条日志')
+    toast.success(t('logs.copy_success'))
   } catch {
-    toast.error('复制失败')
+    toast.error(t('toast.copy_failed'))
   }
 }
 
@@ -89,20 +91,20 @@ onUnmounted(() => off && off())
   <div class="view">
     <header class="view-head">
       <div class="head-title">
-        <h1>日志</h1>
-        <p class="sub">出图 / 出片 / 优化 / 对话 / 测试的请求记录与错误详情 · 共 {{ logs.length }} 条</p>
+        <h1>{{ t('logs.title') }}</h1>
+        <p class="sub">{{ t('logs.sub') }} · {{ logs.length }} {{ t('logs.count') }}</p>
       </div>
       <div class="head-actions">
         <button class="btn btn-sm" :disabled="loading" @click="refresh">
           <span v-if="loading" class="spin"></span>
           <Icon v-else name="refresh" :size="15" />
-          <span>刷新</span>
+          <span>{{ t('logs.refresh') }}</span>
         </button>
         <button class="btn btn-sm" @click="openFile">
-          <Icon name="folder-open" :size="15" /><span>日志文件</span>
+          <Icon name="folder-open" :size="15" /><span>{{ t('logs.file') }}</span>
         </button>
         <button class="btn btn-sm" @click="clear">
-          <Icon name="trash" :size="15" /><span>清空</span>
+          <Icon name="trash" :size="15" /><span>{{ t('logs.clear') }}</span>
         </button>
       </div>
     </header>
@@ -113,7 +115,7 @@ onUnmounted(() => off && off())
           <button class="log-row" @click="toggle(e.id)">
             <span class="dot" :class="e.ok ? 'ok' : 'bad'"></span>
             <span class="time">{{ fmtTime(e.time) }}</span>
-            <span class="kind" :class="e.kind">{{ KIND[e.kind] || e.kind }}</span>
+            <span class="kind" :class="e.kind">{{ t(KIND[e.kind] || e.kind) }}</span>
             <span class="status" v-if="e.status">{{ e.status }}</span>
             <span class="msg">{{ e.message }}</span>
             <span class="model">{{ e.model || '' }}</span>
@@ -121,17 +123,17 @@ onUnmounted(() => off && off())
           </button>
 
           <div v-if="expanded === e.id" class="log-detail">
-            <div class="kv"><span>接口</span><b>{{ e.provider || '-' }}</b></div>
-            <div class="kv"><span>模型</span><b>{{ e.model || '-' }}</b></div>
-            <div class="kv"><span>URL</span><b class="mono">{{ e.url || '-' }}</b></div>
-            <div class="kv"><span>HTTP</span><b>{{ e.status ?? '-' }} · {{ e.durationMs ?? '-' }}ms</b></div>
-            <div class="kv"><span>信息</span><b>{{ e.message }}</b></div>
+            <div class="kv"><span>{{ t('settings.interface_config') }}</span><b>{{ e.provider || '-' }}</b></div>
+            <div class="kv"><span>{{ t('settings.model') }}</span><b>{{ e.model || '-' }}</b></div>
+            <div class="kv"><span>{{ t('logs.url') }}</span><b class="mono">{{ e.url || '-' }}</b></div>
+            <div class="kv"><span>{{ t('logs.http') }}</span><b>{{ e.status ?? '-' }} · {{ e.durationMs ?? '-' }}ms</b></div>
+            <div class="kv"><span>{{ t('logs.info') }}</span><b>{{ e.message }}</b></div>
             <div v-if="e.detail" class="raw">
-              <div class="raw-head">原始返回</div>
+              <div class="raw-head">{{ t('logs.raw_head') }}</div>
               <pre>{{ e.detail }}</pre>
             </div>
             <button class="btn btn-sm btn-ghost copy-btn" @click="copyDetail(e)">
-              <Icon name="copy" :size="14" /><span>复制此条</span>
+              <Icon name="copy" :size="14" /><span>{{ t("logs.copy_entry") }}</span>
             </button>
           </div>
         </div>
@@ -139,8 +141,8 @@ onUnmounted(() => off && off())
 
       <div v-else-if="!loading" class="empty">
         <div class="empty-art"><Icon name="logs" :size="32" /></div>
-        <p class="empty-title">还没有日志</p>
-        <p class="empty-sub">生成图片 / 视频或测试连接后，记录会出现在这里</p>
+        <p class="empty-title">{{ t('logs.empty_title') }}</p>
+        <p class="empty-sub">{{ t('logs.empty_sub') }}</p>
       </div>
     </div>
   </div>
@@ -231,7 +233,7 @@ onUnmounted(() => off && off())
   color: var(--text-2);
   flex-shrink: 0;
 }
-/* 中间亮度的紫/蓝，浅色与深色主题下都可读（原浅紫/浅蓝在白底上看不清） */
+/* Mid-brightness purple/blue, readable in both light and dark themes (the old pale purple/blue was unreadable on white) */
 .kind.image {
   color: #7c5cf0;
 }

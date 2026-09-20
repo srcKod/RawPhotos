@@ -1,6 +1,8 @@
 <script setup>
 import { onMounted, onUnmounted, watch, ref, computed } from 'vue'
 import { store, loadSettings, persistSettings, isConfigured, activeProvider, setTheme, THEMES } from './store'
+import { useI18n } from 'vue-i18n'
+import { SUPPORTED_LOCALES, changeLanguage as i18nChangeLanguage } from './i18n'
 import { toast } from './composables/useToast'
 import TitleBar from './components/TitleBar.vue'
 import Icon from './components/Icon.vue'
@@ -13,24 +15,46 @@ import StatsView from './components/StatsView.vue'
 import AboutView from './components/AboutView.vue'
 import ToastHost from './components/ToastHost.vue'
 
+const { t } = useI18n()
 const view = ref('generate')
+const showLangDropdown = ref(false)
 
-const navItems = [
-  { id: 'generate', label: '生成', icon: 'sparkle' },
-  { id: 'chat', label: '对话', icon: 'chat' },
-  { id: 'gallery', label: '画廊', icon: 'grid' },
-  { id: 'stats', label: '统计', icon: 'chart' },
-  { id: 'logs', label: '日志', icon: 'logs' },
-  { id: 'settings', label: '设置', icon: 'settings' },
-  { id: 'about', label: '关于', icon: 'info' }
-]
+// Available languages from i18n config
+const availableLanguages = SUPPORTED_LOCALES
+
+const navItems = computed(() => [
+  { id: 'generate', label: t('nav.generate'), icon: 'sparkle' },
+  { id: 'chat', label: t('nav.chat'), icon: 'chat' },
+  { id: 'gallery', label: t('nav.gallery'), icon: 'grid' },
+  { id: 'stats', label: t('nav.stats'), icon: 'chart' },
+  { id: 'logs', label: t('nav.logs'), icon: 'logs' },
+  { id: 'settings', label: t('nav.settings'), icon: 'settings' },
+  { id: 'about', label: t('nav.about'), icon: 'info' }
+])
 
 const configured = computed(() => isConfigured())
 const prov = computed(() => activeProvider())
 const currentTheme = computed(() => store.settings.theme || 'sky')
+const currentLang = computed(() => store.settings.language || 'en')
+
+const langLabel = computed(() => {
+  const found = availableLanguages.find(l => l.code === currentLang.value)
+  return found ? found.name : 'English'
+})
 
 const quit = () => window.api.quitApp()
 const hideToTray = () => window.api.window.close()
+
+async function changeLanguage(lang) {
+  await i18nChangeLanguage(lang)
+  store.settings.language = lang
+  await persistSettings({ language: lang })
+}
+
+function selectLanguage(lang) {
+  changeLanguage(lang)
+  showLangDropdown.value = false
+}
 
 const balance = ref(null)
 function money(v) {
@@ -50,9 +74,9 @@ function checkAlert() {
   if (rem <= th) {
     if (!belowAlerted) {
       belowAlerted = true
-      const msg = `剩余额度 ${money(rem)}，已低于预警值 ${money(th)}`
-      toast.error(`⚠️ 额度预警：${msg}`)
-      window.api.notify({ title: '额度预警 · RawPhotos', body: msg })
+      const msg = t('toast.lowQuota') + ': ' + t('quota.remaining') + ' ' + money(rem) + ', ' + t('toast.thresholdBelow') + ' ' + money(th)
+      toast.error(msg)
+      window.api.notify({ title: t('toast.lowQuotaTitle'), body: msg })
     }
   } else {
     belowAlerted = false
@@ -98,6 +122,10 @@ onMounted(async () => {
   if (!isConfigured()) view.value = 'settings'
   loadBalance()
   balTimer = setInterval(loadBalance, 60000)
+
+  document.addEventListener('click', () => {
+    showLangDropdown.value = false
+  })
 })
 onUnmounted(() => {
   if (balTimer) clearInterval(balTimer)
@@ -124,34 +152,56 @@ onUnmounted(() => {
           </button>
         </nav>
 
+        <div class="lang-row">
+          <button class="lang-btn" :title="t('settings.language')" @click.stop="showLangDropdown = !showLangDropdown">
+            <Icon name="globe" :size="16" />
+            <span class="lang-current">{{ langLabel }}</span>
+            <Icon name="chevron" :size="10" class="lang-chev" :class="{ open: showLangDropdown }" />
+          </button>
+          <Transition name="fade">
+            <div v-if="showLangDropdown" class="lang-dropdown" @click.stop>
+              <button
+                v-for="lang in availableLanguages"
+                :key="lang.code"
+                class="lang-option"
+                :class="{ active: currentLang === lang.code }"
+                @click="selectLanguage(lang.code)"
+              >
+                {{ lang.name }}
+                <Icon v-if="currentLang === lang.code" name="check" :size="13" />
+              </button>
+            </div>
+          </Transition>
+        </div>
+
         <div class="sidebar-foot">
-          <div v-if="balance" class="balance" title="当前接口剩余额度（每分钟刷新）">
+          <div v-if="balance" class="balance" :title="t('quota.remaining')" >
             <span class="bal-ic"><Icon name="plug" :size="13" /></span>
             <div class="bal-text">
               <div class="bal-num">{{ money(balance.remaining) }}</div>
               <div class="bal-sub">
-                剩余额度<template v-if="balance.total != null"> · 总 {{ money(balance.total) }}</template>
+                {{ t('quota.remaining') }}<template v-if="balance.total != null"> / {{ t('quota.total') }} {{ money(balance.total) }}</template>
               </div>
             </div>
           </div>
 
           <div class="theme-row">
             <button
-              v-for="t in THEMES"
-              :key="t.id"
+              v-for="theme in THEMES"
+              :key="theme.id"
               class="theme-dot"
-              :class="{ active: currentTheme === t.id }"
-              :style="{ background: t.bg }"
-              :title="`主题：${t.label}`"
-              @click="setTheme(t.id)"
+              :class="{ active: currentTheme === theme.id }"
+              :style="{ background: theme.bg }"
+              :title="t(theme.label)"
+              @click="setTheme(theme.id)"
             >
-              <span class="theme-accent" :style="{ background: t.accent }"></span>
+              <span class="theme-accent" :style="{ background: theme.accent }"></span>
             </button>
             <button
               class="theme-dot"
               :class="{ active: currentTheme === 'custom' }"
               style="background: #f4f5f7"
-              title="自定义主题"
+              :title="t('theme.custom')"
               @click="setTheme('custom')"
             >
               <span class="theme-accent" :style="{ background: store.settings.customColor || '#10b981' }"></span>
@@ -161,8 +211,8 @@ onUnmounted(() => {
           <div class="status-card">
             <span class="dot" :class="{ on: configured }"></span>
             <div class="status-text">
-              <div class="status-title">{{ configured ? (prov?.name || '接口已连接') : '未配置接口' }}</div>
-              <div class="status-sub">{{ prov?.imageModel || '未设置模型' }}</div>
+              <div class="status-title">{{ configured ? (prov?.name || t('status.connected')) : t('status.not_configured') }}</div>
+              <div class="status-sub">{{ prov?.imageModel || t('status.no_model') }}</div>
             </div>
           </div>
         </div>
@@ -184,26 +234,26 @@ onUnmounted(() => {
     <Transition name="fade">
       <div v-if="closeDialog" class="modal-mask" @click.self="closeDialog = false">
         <div class="modal">
-          <button class="modal-x" title="取消" @click="closeDialog = false">
+          <button class="modal-x" :title="t('modal.close')" @click="closeDialog = false">
             <Icon name="win-close" :size="13" />
           </button>
-          <h3 class="modal-title">关闭 RawPhotos</h3>
-          <p class="modal-desc">选择关闭方式</p>
+          <h3 class="modal-title">{{ t('modal.close_title') }}</h3>
+          <p class="modal-desc">{{ t('modal.close_desc') }}</p>
 
           <div class="modal-choices">
             <button class="choice" @click="chooseClose('tray')">
               <span class="choice-ic tray"><Icon name="tray" :size="18" /></span>
               <span class="choice-txt">
-                <b>最小化到托盘</b>
-                <small>后台继续运行，点托盘图标随时恢复</small>
+                <b>{{ t('modal.minimize_to_tray') }}</b>
+                <small>{{ t('modal.minimize_desc') }}</small>
               </span>
               <Icon name="chevron" :size="15" class="choice-arrow" />
             </button>
             <button class="choice" @click="chooseClose('quit')">
               <span class="choice-ic quit"><Icon name="power" :size="18" /></span>
               <span class="choice-txt">
-                <b>退出应用</b>
-                <small>完全关闭 RawPhotos</small>
+                <b>{{ t('modal.quit_app') }}</b>
+                <small>{{ t('modal.quit_desc') }}</small>
               </span>
               <Icon name="chevron" :size="15" class="choice-arrow" />
             </button>
@@ -211,7 +261,7 @@ onUnmounted(() => {
 
           <label class="modal-remember">
             <input type="checkbox" v-model="rememberClose" />
-            <span>记住选择，下次不再询问</span>
+            <span>{{ t('modal.remember_choice') }}</span>
           </label>
         </div>
       </div>
@@ -274,6 +324,94 @@ onUnmounted(() => {
   border-radius: 50%;
   background: var(--warn);
   box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.16);
+}
+
+.lang-row {
+  position: relative;
+  padding: 10px 12px 14px;
+}
+.lang-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 11px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+.lang-btn:hover {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+.lang-current {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lang-chev {
+  flex-shrink: 0;
+  color: var(--text-3);
+  transition: transform 0.16s ease, color 0.16s ease;
+}
+.lang-chev.open {
+  transform: rotate(-90deg);
+  color: var(--accent);
+}
+.lang-dropdown {
+  position: absolute;
+  top: calc(100% - 6px);
+  left: 12px;
+  right: 12px;
+  z-index: 60;
+  padding: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+.lang-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.lang-option:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.lang-option.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 .sidebar-foot {

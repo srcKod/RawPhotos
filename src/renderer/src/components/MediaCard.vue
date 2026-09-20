@@ -1,8 +1,10 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { computed, ref } from 'vue'
 import { toast } from '../composables/useToast'
 import Icon from './Icon.vue'
 
+const { t } = useI18n()
 const props = defineProps({
   item: { type: Object, required: true }
 })
@@ -29,9 +31,9 @@ async function save() {
       ext: isVideo.value ? 'mp4' : 'png'
     })
     props.item.saved = true
-    toast.success(`已保存到 ${res.dir}`)
+    toast.success(t('toast.saved'))
   } catch (err) {
-    toast.error(`保存失败：${err.message}`)
+    toast.error(t('toast.save_failed') + ': ' + err.message)
   } finally {
     saving.value = false
   }
@@ -45,18 +47,18 @@ async function saveAs() {
       kind: props.item.kind,
       ext: isVideo.value ? 'mp4' : 'png'
     })
-    if (!res.canceled) toast.success(`已另存为 ${res.path}`)
+    if (!res.canceled) toast.success(t('toast.save_as') + ' ' + res.path)
   } catch (err) {
-    toast.error(`保存失败：${err.message}`)
+    toast.error(t('toast.save_failed') + ': ' + err.message)
   }
 }
 
 async function copyPrompt() {
   try {
     await navigator.clipboard.writeText(props.item.prompt || '')
-    toast.success('提示词已复制')
+    toast.success(t('toast.copied'))
   } catch {
-    toast.error('复制失败')
+    toast.error(t('toast.copy_failed'))
   }
 }
 </script>
@@ -71,21 +73,21 @@ async function copyPrompt() {
       <img v-else :src="src" :alt="item.prompt" loading="lazy" />
       <div class="overlay">
         <span class="zoom-hint">
-          <Icon :name="isVideo ? 'play' : 'expand'" :size="14" /> {{ isVideo ? '播放' : '查看大图' }}
+          <Icon :name="isVideo ? 'play' : 'expand'" :size="14" /> {{ isVideo ? t('generate.play') : t('generate.view_image') }}
         </span>
       </div>
-      <span v-if="item.saved" class="saved-flag"><Icon name="check" :size="12" /> 已保存</span>
-      <span v-if="isVideo" class="kind-flag"><Icon name="film" :size="11" /> 视频</span>
+      <span v-if="item.saved" class="saved-flag"><Icon name="check" :size="12" /> {{ t('toast.saved') }}</span>
+      <span v-if="isVideo" class="kind-flag"><Icon name="film" :size="11" /> {{ t('gallery.videos') }}</span>
     </div>
 
     <div class="actions">
       <button class="btn btn-sm btn-primary save-btn" :disabled="saving" @click="save">
         <span v-if="saving" class="spin"></span>
         <Icon v-else name="save" :size="14" />
-        <span>保存</span>
+        <span>{{ t('generate.save') }}</span>
       </button>
-      <button class="btn btn-sm btn-icon" title="另存为…" @click="saveAs"><Icon name="download" :size="15" /></button>
-      <button class="btn btn-sm btn-icon" title="复制提示词" @click="copyPrompt"><Icon name="copy" :size="15" /></button>
+      <button class="btn btn-sm btn-icon" :title="t('gallery.save_as')" @click="saveAs"><Icon name="download" :size="15" /></button>
+      <button class="btn btn-sm btn-icon" :title="t('generate.copy_prompt')" @click="copyPrompt"><Icon name="copy" :size="15" /></button>
     </div>
 
     <p v-if="item.revisedPrompt" class="revised" :title="item.revisedPrompt">

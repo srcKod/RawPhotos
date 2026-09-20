@@ -1,9 +1,11 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { activeProvider } from '../store'
 import { toast } from '../composables/useToast'
 import Icon from './Icon.vue'
 
+const { t } = useI18n()
 const usage = ref(null)
 const loading = ref(false)
 
@@ -14,10 +16,10 @@ const quotaLoading = ref(false)
 const provider = computed(() => activeProvider())
 
 const KIND_CARDS = [
-  { key: 'image', label: '图片', icon: 'image' },
-  { key: 'video', label: '视频', icon: 'film' },
-  { key: 'optimize', label: '提示词优化', icon: 'sparkle' },
-  { key: 'chat', label: 'AI 对话', icon: 'chat' }
+  { key: 'image', label: t('stats.images'), icon: 'image' },
+  { key: 'video', label: t('stats.videos'), icon: 'film' },
+  { key: 'optimize', label: t('stats.optimize'), icon: 'sparkle' },
+  { key: 'chat', label: t('nav.chat'), icon: 'chat' }
 ]
 
 function kindCount(k) {
@@ -67,7 +69,7 @@ async function refresh() {
   try {
     usage.value = await window.api.getUsage()
   } catch (err) {
-    toast.error(`读取统计失败：${err.message}`)
+    toast.error(t('stats.read_failed') + ': ' + err.message)
   } finally {
     loading.value = false
   }
@@ -101,9 +103,9 @@ async function reset() {
   try {
     await window.api.resetUsage()
     await refresh()
-    toast.success('本地统计已清零')
+    toast.success(t('stats.cleared'))
   } catch (err) {
-    toast.error(`清零失败：${err.message}`)
+    toast.error(t('stats.clear_failed') + ': ' + err.message)
   }
 }
 
@@ -111,7 +113,7 @@ let timer = null
 onMounted(() => {
   refresh()
   loadQuota()
-  // 额度定时刷新（每 60s），别只跑一次
+  // Periodic quota refresh (every 60s), not just once at mount
   timer = setInterval(() => {
     loadQuota()
     refresh()
@@ -126,14 +128,14 @@ onUnmounted(() => {
   <div class="view">
     <header class="view-head">
       <div class="head-title">
-        <h1>用量统计</h1>
-        <p class="sub">中转额度 + 本地累计调用</p>
+        <h1>{{ t('stats.title') }}</h1>
+        <p class="sub">{{ t('stats.sub') }}</p>
       </div>
       <div class="head-actions">
         <button class="btn btn-sm" :disabled="loading || quotaLoading" @click="refreshAll">
           <span v-if="loading || quotaLoading" class="spin"></span>
           <Icon v-else name="refresh" :size="15" />
-          <span>刷新</span>
+          <span>{{ t('stats.refresh') }}</span>
         </button>
       </div>
     </header>
@@ -144,14 +146,14 @@ onUnmounted(() => {
           <div class="quota-head-l">
             <span class="quota-ic"><Icon name="plug" :size="18" /></span>
             <div>
-              <div class="quota-title">中转额度</div>
-              <div class="quota-prov">{{ provider?.name || '未配置接口' }}</div>
+              <div class="quota-title">{{ t('stats.quota_title') }}</div>
+              <div class="quota-prov">{{ t('settings.active_provider') }}: {{ provider?.name || t('stats.no_provider') }}</div>
             </div>
           </div>
           <button class="btn btn-sm btn-ghost" :disabled="quotaLoading" @click="loadQuota">
             <span v-if="quotaLoading" class="spin"></span>
             <Icon v-else name="refresh" :size="14" />
-            <span>查询</span>
+            <span>{{ t('stats.search') }}</span>
           </button>
         </div>
 
@@ -159,27 +161,27 @@ onUnmounted(() => {
           <div class="quota-nums">
             <div class="qn">
               <div class="qn-num remain">{{ money(quota.remaining) }}</div>
-              <div class="qn-label">剩余</div>
+              <div class="qn-label">{{ t('stats.remaining') }}</div>
             </div>
             <div class="qn">
               <div class="qn-num">{{ money(quota.total) }}</div>
-              <div class="qn-label">总额度</div>
+              <div class="qn-label">{{ t('stats.total') }}</div>
             </div>
             <div class="qn">
               <div class="qn-num">{{ money(quota.used) }}</div>
-              <div class="qn-label">已用</div>
+              <div class="qn-label">{{ t('stats.used') }}</div>
             </div>
           </div>
           <div v-if="usedPct != null" class="quota-bar">
             <div class="quota-fill" :style="{ width: usedPct + '%' }"></div>
           </div>
-          <div v-if="usedPct != null" class="quota-pct">已用 {{ usedPct }}%</div>
+          <div v-if="usedPct != null" class="quota-pct">{{ t('stats.used') }} {{ usedPct }}%</div>
         </template>
-        <div v-else-if="quotaLoading" class="quota-msg">正在查询额度…</div>
-        <div v-else class="quota-msg">{{ quotaErr || '点击「查询」获取额度' }}</div>
+        <div v-else-if="quotaLoading" class="quota-msg">{{ t('stats.qn_loading') }}</div>
+        <div v-else class="quota-msg">{{ quotaErr || t('stats.qn_error') }}</div>
       </section>
 
-      <h3 class="section-h">本地累计用量</h3>
+      <h3 class="section-h">{{ t('stats.local_title') }}</h3>
       <div class="kpi-grid">
         <div v-for="c in KIND_CARDS" :key="c.key" class="kpi">
           <span class="kpi-ic"><Icon :name="c.icon" :size="18" /></span>
@@ -193,29 +195,29 @@ onUnmounted(() => {
       <section class="card sum-card">
         <div class="sum-item">
           <div class="sum-num">{{ genTotal }}</div>
-          <div class="sum-label">生成总数</div>
+          <div class="sum-label">{{ t('stats.total_generated') }}</div>
         </div>
         <div class="sum-item">
           <div class="sum-num">{{ totalReq }}</div>
-          <div class="sum-label">总请求</div>
+          <div class="sum-label">{{ t('stats.total_requests') }}</div>
         </div>
         <div class="sum-item">
           <div class="sum-num ok">{{ usage?.ok || 0 }}</div>
-          <div class="sum-label">成功</div>
+          <div class="sum-label">{{ t('stats.success') }}</div>
         </div>
         <div class="sum-item">
           <div class="sum-num bad">{{ usage?.fail || 0 }}</div>
-          <div class="sum-label">失败</div>
+          <div class="sum-label">{{ t('stats.failed') }}</div>
         </div>
         <div class="sum-item">
           <div class="sum-num">{{ okRate }}%</div>
-          <div class="sum-label">成功率</div>
+          <div class="sum-label">{{ t('stats.success_rate') }}</div>
         </div>
       </section>
 
       <div class="two-col">
         <section class="card block">
-          <h3 class="block-title">最近 7 天</h3>
+          <h3 class="block-title">{{ t('stats.recent_7d') }}</h3>
           <div class="bars">
             <div v-for="d in days" :key="d.key" class="bar-col">
               <div class="bar-wrap">
@@ -230,8 +232,8 @@ onUnmounted(() => {
 
         <section class="card block">
           <div class="block-title-row">
-            <h3 class="block-title">按模型 Top</h3>
-            <button class="btn btn-sm btn-ghost" @click="reset"><Icon name="trash" :size="13" /><span>清零</span></button>
+            <h3 class="block-title">{{ t('stats.model_top') }}</h3>
+            <button class="btn btn-sm btn-ghost" @click="reset"><Icon name="trash" :size="13" /><span>{{ t('stats.clear') }}</span></button>
           </div>
           <div v-if="topModels.length" class="models">
             <div v-for="[m, n] in topModels" :key="m" class="model-row">
@@ -242,7 +244,7 @@ onUnmounted(() => {
               <span class="model-n">{{ n }}</span>
             </div>
           </div>
-          <p v-else class="empty-line">还没有数据，去生成几张试试。</p>
+          <p v-else class="empty-line">{{ t('stats.no_data') }}</p>
         </section>
       </div>
     </div>

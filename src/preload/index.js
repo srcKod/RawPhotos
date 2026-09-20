@@ -37,7 +37,8 @@ const api = {
     ipcRenderer.on('logs:new', handler)
     return () => ipcRenderer.removeListener('logs:new', handler)
   },
-  // 把本地绝对路径转成可被 <img>/<video> 加载的自定义协议地址（纯字符串拼接，不走 IPC）
+  // Convert a local absolute path into the custom protocol URL that <img>/<video> can load
+  // (pure string concatenation, no IPC round-trip)
   mediaUrl: (absPath) => `rawmedia://media/?p=${encodeURIComponent(absPath)}`,
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),

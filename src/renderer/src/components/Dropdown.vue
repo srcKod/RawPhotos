@@ -1,11 +1,13 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Icon from './Icon.vue'
 
+const { t } = useI18n()
 const props = defineProps({
   modelValue: { type: [String, Number], default: '' },
-  options: { type: Array, default: () => [] }, // string[] 或 {value,label}[]
-  placeholder: { type: String, default: '请选择' },
+  options: { type: Array, default: () => [] }, // string[] or {value,label}[]
+  placeholder: { type: String, default: '' },
   size: { type: String, default: 'md' } // 'md' | 'sm'
 })
 const emit = defineEmits(['update:modelValue'])
@@ -26,7 +28,7 @@ const isPlaceholder = computed(() => !selected.value && !props.modelValue)
 function toggle() {
   if (!open.value) {
     const rect = root.value && root.value.getBoundingClientRect()
-    // 下方空间不足（< 300px）就向上弹，避免被窗口底部/任务栏挡住选不到
+    // Not enough space below (< 300px) — pop upward so the window bottom / taskbar doesn't hide the options
     openUp.value = rect ? window.innerHeight - rect.bottom < 300 : false
   }
   open.value = !open.value
@@ -70,7 +72,7 @@ onUnmounted(() => {
           <span class="dd-opt-label">{{ o.label }}</span>
           <Icon v-if="o.value === modelValue" name="check" :size="13" />
         </button>
-        <div v-if="!norm.length" class="dd-empty">无可选项</div>
+        <div v-if="!norm.length" class="dd-empty">{{ t('dropdown.empty') }}</div>
       </div>
     </Transition>
   </div>

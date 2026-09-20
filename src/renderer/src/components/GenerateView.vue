@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { ref, computed, onMounted } from 'vue'
 import { store, addResults, clearResults, isConfigured, activeProvider, setActiveProvider } from '../store'
 import { toast } from '../composables/useToast'
@@ -7,6 +8,7 @@ import Lightbox from './Lightbox.vue'
 import Icon from './Icon.vue'
 import Dropdown from './Dropdown.vue'
 
+const { t } = useI18n()
 const emit = defineEmits(['go-settings'])
 
 const mode = ref('image')
@@ -31,7 +33,7 @@ const configured = computed(() => isConfigured())
 const provider = computed(() => activeProvider())
 const providers = computed(() => store.settings.providers || [])
 const providerOptions = computed(() =>
-  providers.value.map((p) => ({ value: p.id, label: p.name || '未命名接口' }))
+  providers.value.map((p) => ({ value: p.id, label: p.name || t('settings.unnamed_interface') }))
 )
 
 const activeId = computed({
@@ -46,7 +48,7 @@ const activeId = computed({
 const videoReady = computed(() => Boolean(provider.value && provider.value.videoModel))
 const modelPlaceholder = computed(() =>
   mode.value === 'video'
-    ? provider.value?.videoModel || '当前接口未设视频模型'
+    ? provider.value?.videoModel || t('generate.no_video_model_short')
     : provider.value?.imageModel || 'grok-imagine-image'
 )
 
@@ -91,21 +93,11 @@ onMounted(async () => {
 let seed = 0
 const nextId = () => `${Date.now()}-${seed++}`
 
-const SAMPLES = {
-  image: [
-    '赛博朋克雨夜城市街道，霓虹倒影，电影级光效，超高细节',
-    '一只穿宇航服的柴犬漂浮在太空，背景是地球，超写实质感',
-    '中国水墨山水，云雾缭绕，大量留白，意境悠远',
-    '极简主义产品摄影，香水瓶置于大理石台面，柔和侧光'
-  ],
-  video: [
-    '一条穿唐装的中国龙在长城上飞翔，云海翻腾，电影运镜',
-    '海浪缓缓拍打金色沙滩，夕阳余晖，慢动作特写',
-    '霓虹都市夜景延时，车流如光带穿梭，鸟瞰视角',
-    '樱花花瓣随风飘落，阳光穿过花枝，柔焦唯美'
-  ]
-}
-const samplePrompts = computed(() => SAMPLES[mode.value])
+const samplePrompts = computed(() =>
+  mode.value === 'video'
+    ? [t('generate.sample_video_1'), t('generate.sample_video_2'), t('generate.sample_video_3'), t('generate.sample_video_4')]
+    : [t('generate.sample_img_1'), t('generate.sample_img_2'), t('generate.sample_img_3'), t('generate.sample_img_4')]
+)
 
 function switchMode(m) {
   if (mode.value === m) return
@@ -122,7 +114,7 @@ function onPickRef(e) {
   e.target.value = ''
   if (!file) return
   if (!file.type.startsWith('image/')) {
-    toast.error('请选择图片文件')
+    toast.error(t('generate.please_select_file'))
     return
   }
   const reader = new FileReader()
@@ -130,26 +122,26 @@ function onPickRef(e) {
     const dataUrl = String(reader.result || '')
     refImage.value = { dataUrl, b64: dataUrl.split(',')[1] || '', name: file.name }
   }
-  reader.onerror = () => toast.error('读取图片失败')
+  reader.onerror = () => toast.error(t('generate.read_image_failed'))
   reader.readAsDataURL(file)
 }
 
 async function optimize() {
   if (!configured.value) {
-    toast.error('请先在设置中配置接口地址')
+    toast.error(t('generate.enter_prompt'))
     emit('go-settings')
     return
   }
   const text = prompt.value.trim()
   if (!text) {
-    toast.error('请先输入要优化的提示词')
+    toast.error(t('generate.enter_prompt_optimize'))
     return
   }
   optimizing.value = true
   try {
     const res = await window.api.optimizePrompt({ prompt: text, mode: mode.value })
     prompt.value = res.prompt
-    toast.success('提示词已优化（可按 Ctrl+Z 撤销）')
+    toast.success(t('generate.prompt_optimized'))
   } catch (err) {
     toast.error(cleanError(err.message))
   } finally {
@@ -158,19 +150,20 @@ async function optimize() {
 }
 
 function cleanError(msg) {
-  return String(msg || '生成失败').replace(/^Error invoking remote method '[^']+':\s*Error:\s*/, '')
+  return String(msg || t('generate.generate_failed')).replace(/^Error invoking remote method '[^']+':\s*Error:\s*/, '')
 }
 
 function enqueue() {
   if (!configured.value) {
-    toast.error('请先在设置中配置接口地址')
+    toast.error(t('generate.enter_prompt'))
     emit('go-settings')
     return
   }
   const text = prompt.value.trim()
-  // 图生视频可以只给一张图不写字（让画面动起来）；其余场景提示词必填
+  // Image-to-video may run with just a reference image and no text (animate the scene);
+  // every other mode requires a prompt
   if (!text && !(mode.value === 'video' && refImage.value)) {
-    toast.error('请输入提示词')
+    toast.error(t('generate.enter_prompt'))
     return
   }
   queue.value.push({
@@ -181,7 +174,8 @@ function enqueue() {
     model: model.value || undefined,
     size: (mode.value === 'video' ? vSize.value : iSize.value) || undefined,
     seconds: mode.value === 'video' ? vSeconds.value || undefined : undefined,
-    // 图片=图生图（/images/edits）；视频=图生视频（grok-imagine 等模型必须带图）
+    // image = image-to-image (/images/edits); video = image-to-video (grok-imagine and
+    // similar models require the reference image)
     refImage: refImage.value ? { b64: refImage.value.b64, name: refImage.value.name } : null,
     status: 'pending'
   })
@@ -212,7 +206,7 @@ async function runTask(task) {
         saved: false
       }))
     )
-    toast.success(`视频生成成功，共 ${res.videos.length} 个`)
+    toast.success(t('generate.video_success') + ' · ' + res.videos.length + ' ' + t('generate.video_count'))
   } else {
     const res = task.refImage
       ? await window.api.editImage({
@@ -237,7 +231,10 @@ async function runTask(task) {
         saved: false
       }))
     )
-    toast.success(`${task.refImage ? '图生图' : '生成'}成功，共 ${res.images.length} 张`)
+    toast.success(
+      (task.refImage ? t('generate.ref_tag_image') + ' · ' : '') +
+      t('generate.image_success') + ' · ' + res.images.length + ' ' + t('generate.image_count')
+    )
   }
 }
 
@@ -278,25 +275,25 @@ function onKeydown(e) {
   <div class="view">
     <header class="view-head">
       <div class="head-title">
-        <h1>{{ mode === 'video' ? '文生视频' : '文生图' }}</h1>
-        <p class="sub">{{ mode === 'video' ? '输入提示词，让 AI 生成动态视频' : '输入提示词，让 AI 为你绘制图像' }}</p>
+        <h1>{{ mode === 'video' ? t('generate.title_video') : t('generate.title_image') }}</h1>
+        <p class="sub">{{ mode === 'video' ? t('generate.placeholder_video') : t('generate.placeholder_image') }}</p>
       </div>
       <div class="head-right">
         <div class="provider-pick" v-if="providers.length">
           <Icon name="plug" :size="13" />
-          <Dropdown v-model="activeId" :options="providerOptions" size="sm" placeholder="选择接口" class="provider-dd" />
+          <Dropdown v-model="activeId" :options="providerOptions" size="sm" :placeholder="t('generate.select_provider')" class="provider-dd" />
         </div>
-        <span class="badge"><Icon name="image" :size="13" /> 本次 {{ store.results.length }} 项</span>
+        <span class="badge"><Icon name="image" :size="13" /> {{ store.results.length }} {{ t('generate.items') }}</span>
       </div>
     </header>
 
     <div class="scroll">
       <div class="mode-tabs">
         <button class="mode-tab" :class="{ active: mode === 'image' }" @click="switchMode('image')">
-          <Icon name="image" :size="15" /><span>图片</span>
+          <Icon name="image" :size="15" /><span>{{ t('gallery.images') }}</span>
         </button>
         <button class="mode-tab" :class="{ active: mode === 'video' }" @click="switchMode('video')">
-          <Icon name="film" :size="15" /><span>视频</span>
+          <Icon name="film" :size="15" /><span>{{ t('gallery.videos') }}</span>
         </button>
       </div>
 
@@ -308,13 +305,13 @@ function onKeydown(e) {
             rows="4"
             :disabled="optimizing"
             :placeholder="mode === 'video'
-              ? '描述你想要的视频画面与运镜，例如：一条龙在长城上飞翔，云海翻腾，电影级运镜…'
-              : '描述你想要的画面，越具体越好。例如：黄昏海边的灯塔，暖色调，35mm 胶片质感，柔和逆光…'"
+              ? t('generate.placeholder_video')
+              : t('generate.placeholder_image')"
             @keydown="onKeydown"
           ></textarea>
           <div v-if="optimizing" class="opt-overlay">
             <span class="spin"></span>
-            <span>AI 正在优化提示词，请稍候…</span>
+            <span>{{ t('generate.prompt_optimize') }}</span>
           </div>
         </div>
 
@@ -322,19 +319,19 @@ function onKeydown(e) {
           <input ref="fileInput" type="file" accept="image/*" hidden @change="onPickRef" />
           <template v-if="refImage">
             <div class="ref-thumb">
-              <img :src="refImage.dataUrl" alt="参考图" />
-              <button class="ref-x" title="移除参考图" @click="refImage = null">
+              <img :src="refImage.dataUrl" :alt="t('generate.image_ref')" />
+              <button class="ref-x" :title="t('generate.remove_ref')" @click="refImage = null">
                 <Icon name="win-close" :size="11" />
               </button>
             </div>
             <div class="ref-meta">
-              <span class="ref-tag">{{ mode === 'video' ? '图生视频' : '图生图' }}</span>
+              <span class="ref-tag">{{ mode === 'video' ? t('generate.ref_tag_video') : t('generate.ref_tag_image') }}</span>
               <span class="ref-name" :title="refImage.name">{{ refImage.name }}</span>
             </div>
           </template>
           <button v-else class="ref-add" @click="fileInput && fileInput.click()">
             <Icon name="image" :size="15" />
-            <span>{{ mode === 'video' ? '＋ 参考图（图生视频；grok-imagine 等模型必须带图）' : '＋ 参考图（图生图，可选）' }}</span>
+            <span>{{ mode === 'video' ? t('generate.ref_image_tooltip_video') : t('generate.ref_image_tooltip_img') }}</span>
           </button>
         </div>
 
@@ -347,14 +344,14 @@ function onKeydown(e) {
           <button class="opt-btn" :disabled="optimizing || !prompt.trim()" @click="optimize">
             <span v-if="optimizing" class="spin spin-sm"></span>
             <Icon v-else name="sparkle" :size="14" />
-            <span>{{ optimizing ? '优化中…' : 'AI 优化' }}</span>
+            <span>{{ optimizing ? t('generate.optimizing') : t('generate.ai_optimize') }}</span>
           </button>
         </div>
 
         <div class="composer-bar">
           <template v-if="mode === 'image'">
             <div class="ctl-group">
-              <span class="ctl-label">数量</span>
+              <span class="ctl-label">{{ t('generate.count') }}</span>
               <div class="count-group">
                 <button
                   v-for="c in countOptions"
@@ -368,20 +365,20 @@ function onKeydown(e) {
               </div>
             </div>
             <div class="ctl-group">
-              <span class="ctl-label">尺寸</span>
+              <span class="ctl-label">{{ t('generate.size') }}</span>
               <input
                 v-model="iSize"
                 class="input mini-input"
                 :placeholder="provider?.imageSize || '1024x1024'"
                 spellcheck="false"
-                title="留空用接口默认；GPT 绘图支持 1024x1024 / 1536x1024 / 1024x1536 / auto"
+                :title="t('generate.model_hint')"
               />
             </div>
           </template>
 
           <template v-else>
             <div class="ctl-group">
-              <span class="ctl-label">尺寸</span>
+              <span class="ctl-label">{{ t('generate.size') }}</span>
               <input
                 v-model="vSize"
                 class="input mini-input"
@@ -390,18 +387,18 @@ function onKeydown(e) {
               />
             </div>
             <div class="ctl-group">
-              <span class="ctl-label">时长</span>
+              <span class="ctl-label">{{ t('generate.duration') }}</span>
               <input
                 v-model="vSeconds"
                 class="input secs-input"
-                :placeholder="provider?.videoSeconds || '秒'"
+                :placeholder="provider?.videoSeconds || t('generate.video_seconds')"
                 spellcheck="false"
               />
             </div>
           </template>
 
           <div class="ctl-group model-group">
-            <span class="ctl-label">模型</span>
+            <span class="ctl-label">{{ t('generate.model') }}</span>
             <input
               v-if="manualModel"
               v-model="model"
@@ -409,10 +406,10 @@ function onKeydown(e) {
               :placeholder="modelPlaceholder"
             />
             <div v-else class="model-dd-wrap">
-              <Dropdown v-model="model" :options="modelOptions" size="sm" placeholder="选择模型" />
+              <Dropdown v-model="model" :options="modelOptions" size="sm" :placeholder="t('generate.select_model')" />
             </div>
             <button type="button" class="mini-toggle" @click="manualModel = !manualModel">
-              {{ manualModel ? '列表' : '手动' }}
+              {{ manualModel ? t('generate.list_select') : t('generate.manual') }}
             </button>
           </div>
 
@@ -424,7 +421,7 @@ function onKeydown(e) {
               @click="enqueue"
             >
               <Icon :name="mode === 'video' ? 'film' : 'sparkle'" :size="16" />
-              <span>{{ running || queue.length ? '加入队列' : mode === 'video' ? '生成视频' : '生成图像' }}</span>
+              <span>{{ running || queue.length ? t('generate.add_queue') : mode === 'video' ? t('generate.generate_video') : t('generate.generate_image') }}</span>
             </button>
           </div>
         </div>
@@ -432,27 +429,27 @@ function onKeydown(e) {
 
       <div v-if="!configured" class="notice">
         <Icon name="alert" :size="16" />
-        <span>还没有配置接口。请先到设置页添加接口地址与 API Key。</span>
-        <button class="btn btn-sm" @click="emit('go-settings')">去设置</button>
+        <span>{{ t('generate.not_configured_msg') }}</span>
+        <button class="btn btn-sm" @click="emit('go-settings')">{{ t('generate.go_settings') }}</button>
       </div>
       <div v-else-if="mode === 'video' && !videoReady" class="notice">
         <Icon name="alert" :size="16" />
-        <span>当前接口「{{ provider?.name }}」还没填视频模型，出片会失败。可在设置里补上，或临时在上方「模型」框填入。</span>
-        <button class="btn btn-sm" @click="emit('go-settings')">去设置</button>
+        <span>{{ t('generate.no_video_model') }}</span>
+        <button class="btn btn-sm" @click="emit('go-settings')">{{ t('generate.go_settings') }}</button>
       </div>
 
       <div v-if="queue.length" class="queue">
-        <div class="queue-head"><Icon name="logs" :size="14" /> 队列 · {{ queue.length }}</div>
+        <div class="queue-head"><Icon name="logs" :size="14" /> {{ t('generate.queue') }} · {{ queue.length }}</div>
         <div class="queue-items">
-          <div v-for="t in queue" :key="t.id" class="q-item" :class="t.status">
+          <div v-for="task in queue" :key="task.id" class="q-item" :class="task.status">
             <span class="q-ic">
-              <span v-if="t.status === 'running'" class="spin spin-sm"></span>
-              <Icon v-else-if="t.status === 'error'" name="alert" :size="14" />
-              <Icon v-else :name="t.mode === 'video' ? 'film' : 'image'" :size="14" />
+              <span v-if="task.status === 'running'" class="spin spin-sm"></span>
+              <Icon v-else-if="task.status === 'error'" name="alert" :size="14" />
+              <Icon v-else :name="task.mode === 'video' ? 'film' : 'image'" :size="14" />
             </span>
-            <span class="q-prompt" :title="t.prompt">{{ t.prompt }}</span>
-            <span class="q-tag">{{ t.status === 'running' ? '生成中' : t.status === 'error' ? '失败' : '排队中' }}</span>
-            <button v-if="t.status !== 'running'" class="q-x" title="移除" @click="removeTask(t.id)">
+            <span class="q-prompt" :title="task.prompt">{{ task.prompt }}</span>
+            <span class="q-tag">{{ task.status === 'running' ? t('generate.generating') : task.status === 'error' ? t('generate.failed') : t('generate.pending') }}</span>
+            <button v-if="task.status !== 'running'" class="q-x" :title="t('generate.remove_task')" @click="removeTask(task.id)">
               <Icon name="win-close" :size="11" />
             </button>
           </div>
@@ -465,9 +462,9 @@ function onKeydown(e) {
 
       <div v-if="store.results.length" class="results">
         <div class="results-head">
-          <h2>生成结果 <span class="rc">{{ store.results.length }}</span></h2>
+          <h2>{{ t('generate.results') }} <span class="rc">{{ store.results.length }}</span></h2>
           <button class="btn btn-sm btn-ghost" @click="clearResults">
-            <Icon name="trash" :size="14" /><span>清空</span>
+            <Icon name="trash" :size="14" /><span>{{ t('generate.clear') }}</span>
           </button>
         </div>
         <div class="grid">
@@ -477,8 +474,8 @@ function onKeydown(e) {
 
       <div v-else-if="!running" class="empty">
         <div class="empty-art"><Icon :name="mode === 'video' ? 'film' : 'image'" :size="34" /></div>
-        <p class="empty-title">还没有作品</p>
-        <p class="empty-sub">在上方输入提示词，点击「{{ mode === 'video' ? '生成视频' : '生成图像' }}」开始创作</p>
+        <p class="empty-title">{{ t('generate.no_works') }}</p>
+        <p class="empty-sub">{{ t('generate.no_works_sub') }}</p>
       </div>
     </div>
 
@@ -811,7 +808,8 @@ function onKeydown(e) {
   align-items: center;
   gap: 10px;
   font-size: 13px;
-  /* 用主题的警示色：原先固定浅黄 #f5c264 在浅色主题的白底上几乎看不清 */
+  /* Uses the theme's warn color: the old fixed #f5c264 was nearly invisible on white
+     backgrounds in light themes */
   color: var(--warn);
   border: 1px solid color-mix(in srgb, var(--warn) 32%, transparent);
   background: color-mix(in srgb, var(--warn) 8%, transparent);
