@@ -103,7 +103,8 @@ const optimizeOptions = computed(() => [
 // Videos-compatible APIs (POST /videos, mode/first_frame body, video_id retrieval, metadata.url)
 const videoApiOptions = computed(() => [
   { value: '', label: t('settings.video_api_default') },
-  { value: 'openai-videos', label: t('settings.video_api_openai') }
+  { value: 'openai-videos', label: t('settings.video_api_openai') },
+  { value: 'openai-videos-strict', label: t('settings.video_api_strict') }
 ])
 
 // Silently fetch the selected provider's model list on entry/switch to fill the dropdown.
