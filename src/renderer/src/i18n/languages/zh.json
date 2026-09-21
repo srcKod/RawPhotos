@@ -224,7 +224,18 @@
     "model_top": "按模型 Top",
     "clear_failed": "清零失败",
     "no_data": "还没有数据，去生成几张试试。",
-    "sub": "中转额度 + 本地累计调用"
+    "tokens_title": "Token 用量",
+    "tokens_input": "输入",
+    "tokens_output": "输出",
+    "tokens_total": "合计",
+    "tokens_by_model": "按模型统计",
+    "tokens_none": "暂无 Token 数据 —— 对话、优化或出图接口返回用量后这里会显示统计。",
+    "sub": "中转额度 + 本地累计调用",
+    "chart_requests_title": "请求数 — 近 7 天",
+    "chart_tokens_title": "Token 用量 — 近 7 天",
+    "models_requests_title": "模型排行 — 请求数",
+    "models_tokens_title": "模型排行 — Token 用量",
+    "filter_hint": "点击可筛选下方图表"
   },
   "logs": {
     "title": "日志",
@@ -262,6 +273,9 @@
     "model_label": "模型",
     "info_label": "信息",
     "raw_head": "原始返回",
+    "tokens": "Token",
+    "tok_in": "输入",
+    "tok_out": "输出",
     "empty_sub": "生成图片 / 视频或测试连接后，记录会出现在这里",
     "duration": "耗时"
   },
