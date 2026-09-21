@@ -59,6 +59,10 @@ function toggle(id) {
   expanded.value = expanded.value === id ? null : id
 }
 
+function fmtTok(x) {
+  return (x ?? 0).toLocaleString('en-US')
+}
+
 async function copyDetail(e) {
   const lines = [
     `${t('logs.time')}: ${new Date(e.time).toLocaleString()}`,
@@ -66,6 +70,9 @@ async function copyDetail(e) {
     `${t('settings.interface_config')}: ${e.provider || '-'} · ${t('settings.model')} ${e.model || '-'}`,
     `URL: ${e.url || '-'}`,
     `${t('logs.http')}: ${e.status ?? '-'} · ${t('logs.duration')}: ${e.durationMs ?? '-'}ms`,
+    e.tokens
+      ? `${t('logs.tokens')}: ${fmtTok(e.tokens.in)} ${t('logs.tok_in')} / ${fmtTok(e.tokens.out)} ${t('logs.tok_out')}`
+      : '',
     `${t('logs.info')}: ${e.message || '-'}`,
     e.detail ? `${t('logs.raw_head')}:\n${e.detail}` : ''
   ]
@@ -127,6 +134,10 @@ onUnmounted(() => off && off())
             <div class="kv"><span>{{ t('settings.model') }}</span><b>{{ e.model || '-' }}</b></div>
             <div class="kv"><span>{{ t('logs.url') }}</span><b class="mono">{{ e.url || '-' }}</b></div>
             <div class="kv"><span>{{ t('logs.http') }}</span><b>{{ e.status ?? '-' }} · {{ e.durationMs ?? '-' }}ms</b></div>
+            <div v-if="e.tokens" class="kv">
+              <span>{{ t('logs.tokens') }}</span>
+              <b>{{ fmtTok(e.tokens.in) }} {{ t('logs.tok_in') }} / {{ fmtTok(e.tokens.out) }} {{ t('logs.tok_out') }}</b>
+            </div>
             <div class="kv"><span>{{ t('logs.info') }}</span><b>{{ e.message }}</b></div>
             <div v-if="e.detail" class="raw">
               <div class="raw-head">{{ t('logs.raw_head') }}</div>

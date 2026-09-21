@@ -15,6 +15,10 @@ const quotaLoading = ref(false)
 
 const provider = computed(() => activeProvider())
 
+// visual filters: which metric drives the charts below
+const sumFilter = ref('requests') // 'requests' | 'tokens' — toggled from the totals bar
+const tokFilter = ref('total') // 'total' | 'in' | 'out' — toggled from the token cards
+
 const KIND_CARDS = [
   { key: 'image', label: t('stats.images'), icon: 'image' },
   { key: 'video', label: t('stats.videos'), icon: 'film' },
@@ -46,14 +50,73 @@ const days = computed(() => {
   }
   return arr
 })
-const maxDay = computed(() => Math.max(1, ...days.value.map((d) => d.n)))
+function dayTokens(key) {
+  const td = usage.value?.tokensByDay?.[key]
+  return td ? (td.in || 0) + (td.out || 0) : 0
+}
+
+// chartDays switches the 7-day chart between request counts and token totals
+const chartDays = computed(() =>
+  sumFilter.value === 'tokens' ? days.value.map((d) => ({ ...d, n: dayTokens(d.key) })) : days.value
+)
+const maxDay = computed(() => Math.max(1, ...chartDays.value.map((d) => d.n)))
 
 const topModels = computed(() =>
   Object.entries(usage.value?.byModel || {})
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8)
 )
-const maxModel = computed(() => Math.max(1, ...topModels.value.map((m) => m[1])))
+
+// topList switches the models ranking between requests and tokens
+const topList = computed(() => {
+  if (sumFilter.value === 'tokens') {
+    return Object.entries(usage.value?.tokensByModel || {})
+      .map(([model, t]) => [model, (t.in || 0) + (t.out || 0)])
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+  }
+  return topModels.value
+})
+const maxModel = computed(() => Math.max(1, ...topList.value.map((m) => m[1])))
+
+const tokens = computed(() => usage.value?.tokens || { in: 0, out: 0 })
+const hasTokens = computed(() => (tokens.value.in || 0) + (tokens.value.out || 0) > 0)
+
+// last 7 days of token in/out, reusing the same day keys as the request chart
+const tDays = computed(() =>
+  days.value.map((d) => ({ ...d, tok: usage.value?.tokensByDay?.[d.key] || null }))
+)
+
+// tokFilter: which token slice the token card's chart and per-model list show
+function tokVal(td) {
+  if (!td) return 0
+  if (tokFilter.value === 'in') return td.in || 0
+  if (tokFilter.value === 'out') return td.out || 0
+  return (td.in || 0) + (td.out || 0)
+}
+const maxTokDay = computed(() => Math.max(1, ...tDays.value.map((d) => tokVal(d.tok))))
+
+const topTokModels = computed(() =>
+  Object.entries(usage.value?.tokensByModel || {})
+    .map(([model, t]) => ({ model, in: t.in || 0, out: t.out || 0 }))
+    .map((m) => ({ ...m, v: tokVal(m) }))
+    .filter((m) => m.v > 0)
+    .sort((a, b) => b.v - a.v)
+    .slice(0, 8)
+)
+const maxTokModel = computed(() => Math.max(1, ...topTokModels.value.map((m) => m.v)))
+
+function fmtNum(x) {
+  return (x ?? 0).toLocaleString('en-US')
+}
+
+// compact number for token bar labels (12.3k / 4.5M)
+function fmtCompact(x) {
+  const v = x || 0
+  if (v >= 1e6) return (v / 1e6).toFixed(v >= 1e7 ? 0 : 1) + 'M'
+  if (v >= 1e3) return (v / 1e3).toFixed(v >= 1e4 ? 0 : 1) + 'k'
+  return String(v)
+}
 
 function cleanErr(m) {
   return String(m || '').replace(/^Error invoking remote method '[^']+':\s*Error:\s*/, '')
@@ -197,9 +260,23 @@ onUnmounted(() => {
           <div class="sum-num">{{ genTotal }}</div>
           <div class="sum-label">{{ t('stats.total_generated') }}</div>
         </div>
-        <div class="sum-item">
+        <div
+          class="sum-item clickable"
+          :class="{ active: sumFilter === 'requests' }"
+          :title="t('stats.filter_hint')"
+          @click="sumFilter = 'requests'"
+        >
           <div class="sum-num">{{ totalReq }}</div>
           <div class="sum-label">{{ t('stats.total_requests') }}</div>
+        </div>
+        <div
+          class="sum-item clickable"
+          :class="{ active: sumFilter === 'tokens' }"
+          :title="t('stats.filter_hint')"
+          @click="sumFilter = 'tokens'"
+        >
+          <div class="sum-num">{{ fmtNum((tokens.in || 0) + (tokens.out || 0)) }}</div>
+          <div class="sum-label">{{ t('stats.tokens_total') }}</div>
         </div>
         <div class="sum-item">
           <div class="sum-num ok">{{ usage?.ok || 0 }}</div>
@@ -217,12 +294,12 @@ onUnmounted(() => {
 
       <div class="two-col">
         <section class="card block">
-          <h3 class="block-title">{{ t('stats.recent_7d') }}</h3>
+          <h3 class="block-title">{{ sumFilter === 'tokens' ? t('stats.chart_tokens_title') : t('stats.chart_requests_title') }}</h3>
           <div class="bars">
-            <div v-for="d in days" :key="d.key" class="bar-col">
+            <div v-for="d in chartDays" :key="d.key" class="bar-col">
               <div class="bar-wrap">
                 <div class="bar" :style="{ height: Math.round((d.n / maxDay) * 100) + '%' }">
-                  <span v-if="d.n" class="bar-n">{{ d.n }}</span>
+                  <span v-if="d.n" class="bar-n">{{ sumFilter === 'tokens' ? fmtCompact(d.n) : d.n }}</span>
                 </div>
               </div>
               <span class="bar-label">{{ d.label }}</span>
@@ -232,21 +309,86 @@ onUnmounted(() => {
 
         <section class="card block">
           <div class="block-title-row">
-            <h3 class="block-title">{{ t('stats.model_top') }}</h3>
+            <h3 class="block-title">{{ sumFilter === 'tokens' ? t('stats.models_tokens_title') : t('stats.models_requests_title') }}</h3>
             <button class="btn btn-sm btn-ghost" @click="reset"><Icon name="trash" :size="13" /><span>{{ t('stats.clear') }}</span></button>
           </div>
-          <div v-if="topModels.length" class="models">
-            <div v-for="[m, n] in topModels" :key="m" class="model-row">
+          <div v-if="topList.length" class="models">
+            <div v-for="[m, n] in topList" :key="m" class="model-row">
               <span class="model-name" :title="m">{{ m }}</span>
               <div class="model-bar-wrap">
                 <div class="model-bar" :style="{ width: Math.round((n / maxModel) * 100) + '%' }"></div>
               </div>
-              <span class="model-n">{{ n }}</span>
+              <span class="model-n">{{ sumFilter === 'tokens' ? fmtCompact(n) : n }}</span>
             </div>
           </div>
           <p v-else class="empty-line">{{ t('stats.no_data') }}</p>
         </section>
       </div>
+
+      <!-- token usage card (chat / optimize / image requests that report usage) -->
+      <section class="card tok-card">
+        <h3 class="block-title">{{ t('stats.tokens_title') }}</h3>
+        <template v-if="hasTokens">
+          <div class="tok-sums">
+            <div class="tok-sum clickable" :class="{ active: tokFilter === 'in' }" :title="t('stats.filter_hint')" @click="tokFilter = 'in'">
+              <div class="tok-num">{{ fmtNum(tokens.in) }}</div>
+              <div class="tok-label">{{ t('stats.tokens_input') }}</div>
+            </div>
+            <div class="tok-sum clickable" :class="{ active: tokFilter === 'out' }" :title="t('stats.filter_hint')" @click="tokFilter = 'out'">
+              <div class="tok-num">{{ fmtNum(tokens.out) }}</div>
+              <div class="tok-label">{{ t('stats.tokens_output') }}</div>
+            </div>
+            <div class="tok-sum accent clickable" :class="{ active: tokFilter === 'total' }" :title="t('stats.filter_hint')" @click="tokFilter = 'total'">
+              <div class="tok-num">{{ fmtNum((tokens.in || 0) + (tokens.out || 0)) }}</div>
+              <div class="tok-label">{{ t('stats.tokens_total') }}</div>
+            </div>
+          </div>
+
+          <h4 class="tok-sub">{{ t('stats.recent_7d') }}</h4>
+          <div class="tok-bars">
+            <div v-for="d in tDays" :key="d.key" class="tbar-col">
+              <div class="tbar-wrap">
+                <div
+                  class="tbar"
+                  :style="{ height: Math.max(tokVal(d.tok) ? 4 : 0, Math.round((tokVal(d.tok) / maxTokDay) * 100)) + '%' }"
+                >
+                  <template v-if="d.tok && tokFilter !== 'total'">
+                    <div :class="tokFilter === 'in' ? 'tbar-in' : 'tbar-out'" style="flex: 1"></div>
+                  </template>
+                  <template v-else-if="d.tok">
+                    <div class="tbar-in" :style="{ flex: d.tok.in || 0 }"></div>
+                    <div class="tbar-out" :style="{ flex: d.tok.out || 0 }"></div>
+                  </template>
+                </div>
+              </div>
+              <span class="bar-label">{{ d.label }}</span>
+            </div>
+          </div>
+
+          <template v-if="topTokModels.length">
+            <h4 class="tok-sub">{{ t('stats.tokens_by_model') }}</h4>
+            <div class="tok-models">
+              <div v-for="m in topTokModels" :key="m.model" class="tok-model-row">
+                <span class="model-name" :title="m.model">{{ m.model }}</span>
+                <div class="tok-model-bars">
+                  <div class="tbar h">
+                    <template v-if="tokFilter !== 'total'">
+                      <div :class="tokFilter === 'in' ? 'tbar-in' : 'tbar-out'" :style="{ width: (m.v / maxTokModel) * 100 + '%' }"></div>
+                    </template>
+                    <template v-else>
+                      <div class="tbar-in" :style="{ width: (m.in / maxTokModel) * 100 + '%' }"></div>
+                      <div class="tbar-out" :style="{ width: (m.out / maxTokModel) * 100 + '%' }"></div>
+                    </template>
+                  </div>
+                </div>
+                <span class="tok-model-n">{{ fmtNum(m.v) }}</span>
+              </div>
+            </div>
+          </template>
+          <p v-else class="empty-line">{{ t('stats.no_data') }}</p>
+        </template>
+        <p v-else class="empty-line">{{ t('stats.tokens_none') }}</p>
+      </section>
     </div>
   </div>
 </template>
@@ -420,6 +562,8 @@ onUnmounted(() => {
   flex: 1;
   min-width: 70px;
   text-align: center;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
 }
 .sum-num {
   font-size: 20px;
@@ -436,6 +580,34 @@ onUnmounted(() => {
   font-size: 11.5px;
   color: var(--text-3);
   margin-top: 2px;
+}
+
+/* clickable metric cards act as filters for the charts below */
+.clickable {
+  cursor: pointer;
+  user-select: none;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+.clickable:hover {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 1px var(--accent-line), 0 4px 16px var(--accent-soft);
+  transform: translateY(-1px);
+}
+.sum-item.clickable:hover {
+  background: var(--surface-2);
+}
+.sum-item.active {
+  background: var(--accent-soft);
+}
+.sum-item.active .sum-num {
+  color: var(--accent);
+}
+.tok-sum.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.tok-sum.active .tok-num {
+  color: var(--accent);
 }
 .two-col {
   display: grid;
@@ -545,4 +717,24 @@ onUnmounted(() => {
   font-size: 12.5px;
   color: var(--text-3);
 }
+
+/* token usage card */
+.tok-card { padding: 18px 20px 20px; margin-top: 14px; }
+.tok-sums { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin: 14px 0 18px; }
+.tok-sum { text-align: center; padding: 12px 10px; border-radius: var(--radius-sm); background: var(--bg-1); border: 1px solid var(--border); }
+.tok-num { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tok-sum.accent .tok-num { color: var(--accent); }
+.tok-label { font-size: 11.5px; color: var(--text-3); margin-top: 3px; }
+.tok-sub { margin: 0 0 12px; font-size: 12.5px; font-weight: 650; color: var(--text-2); }
+.tok-bars { display: flex; align-items: flex-end; gap: 10px; height: 130px; }
+.tbar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px; height: 100%; }
+.tbar-wrap { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.tbar { width: 62%; border-radius: 6px; background: var(--surface-2); display: flex; flex-direction: column; overflow: hidden; transition: height 0.3s ease; }
+.tbar.h { width: 100%; height: 7px; flex-direction: row; }
+.tbar-in { background: var(--accent); }
+.tbar-out { background: var(--accent-soft); }
+.tok-models { display: flex; flex-direction: column; gap: 10px; }
+.tok-model-row { display: flex; align-items: center; gap: 10px; }
+.tok-model-bars { flex: 1; }
+.tok-model-n { width: 70px; text-align: right; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 </style>

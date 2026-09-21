@@ -430,7 +430,7 @@ function requestPermissionFromRenderer(callId, tool, display) {
 // Cumulative usage stats: independent of the 300-entry log ring buffer;
 // long-term totals persisted to userData/rawphotos-usage.json
 function freshUsage() {
-  return { byKind: {}, byModel: {}, byDay: {}, ok: 0, fail: 0, firstAt: null }
+  return { byKind: {}, byModel: {}, byDay: {}, tokens: { in: 0, out: 0 }, tokensByModel: {}, tokensByDay: {}, ok: 0, fail: 0, firstAt: null }
 }
 let usage = freshUsage()
 let usageTimer = null
@@ -452,11 +452,30 @@ async function loadUsage() {
       ...o,
       byKind: { ...(o.byKind || {}) },
       byModel: { ...(o.byModel || {}) },
-      byDay: { ...(o.byDay || {}) }
+      byDay: { ...(o.byDay || {}) },
+      tokens: { in: o.tokens?.in || 0, out: o.tokens?.out || 0 },
+      tokensByModel: { ...(o.tokensByModel || {}) },
+      tokensByDay: { ...(o.tokensByDay || {}) }
     }
   } catch {
     usage = freshUsage()
   }
+}
+// Pull prompt/completion token counts from an OpenAI-style usage object
+// (prompt_tokens/completion_tokens; input_tokens/output_tokens on newer APIs).
+function extractTokens(json) {
+  const u = json && typeof json === 'object' ? json.usage : null
+  if (!u || typeof u !== 'object') return null
+  const num = (v) => (Number.isFinite(v) ? v : parseInt(v, 10) || 0)
+  const input = num(u.prompt_tokens ?? u.input_tokens)
+  const output = num(u.completion_tokens ?? u.output_tokens)
+  if (!input && !output) return null
+  return { in: input, out: output }
+}
+function addTokens(a, b) {
+  if (!b) return a
+  if (!a) return { in: b.in, out: b.out }
+  return { in: a.in + b.in, out: a.out + b.out }
 }
 function recordUsage(e) {
   usage.byKind[e.kind] = (usage.byKind[e.kind] || 0) + 1
@@ -465,6 +484,18 @@ function recordUsage(e) {
   if (e.model) usage.byModel[e.model] = (usage.byModel[e.model] || 0) + 1
   const day = new Date(e.time).toISOString().slice(0, 10)
   usage.byDay[day] = (usage.byDay[day] || 0) + 1
+  if (e.tokens && (e.tokens.in || e.tokens.out)) {
+    usage.tokens.in += e.tokens.in
+    usage.tokens.out += e.tokens.out
+    if (e.model) {
+      const tm = usage.tokensByModel[e.model] || (usage.tokensByModel[e.model] = { in: 0, out: 0 })
+      tm.in += e.tokens.in
+      tm.out += e.tokens.out
+    }
+    const td = usage.tokensByDay[day] || (usage.tokensByDay[day] = { in: 0, out: 0 })
+    td.in += e.tokens.in
+    td.out += e.tokens.out
+  }
   if (!usage.firstAt) usage.firstAt = e.time
   saveUsage()
 }
@@ -562,6 +593,7 @@ function registerIpc() {
       } catch {
         // some proxies return a non-standard /models structure; a successful connection is good enough
       }
+      // NOTE: /models responses carry no usage object, so no token extraction here
       pushLog({ kind: 'test', ok: true, provider: provider.name, url, status: res.status, durationMs: Date.now() - t0, message: m('main.log_test_ok', { count: models.length }) })
       return { ok: true, status: res.status, models }
     } catch (err) {
@@ -617,7 +649,7 @@ function registerIpc() {
       })
       const images = pickMediaItems(json)
       if (!images.length) throw new Error(m('main.err_no_images'))
-      pushLog({ kind: 'image', ok: true, provider: provider.name, model, url, status: 200, durationMs: Date.now() - t0, message: m('main.log_image_ok', { count: images.length }) })
+      pushLog({ kind: 'image', ok: true, provider: provider.name, model, url, status: 200, durationMs: Date.now() - t0, tokens: extractTokens(json), message: m('main.log_image_ok', { count: images.length }) })
       return { images, model, prompt }
     } catch (err) {
       pushLog({ kind: 'image', ok: false, provider: provider.name, model, url, status: err.status, durationMs: Date.now() - t0, message: err.message, detail: err.responseText })
@@ -659,7 +691,7 @@ function registerIpc() {
       })
       const images = pickMediaItems(json)
       if (!images.length) throw new Error(m('main.err_no_images'))
-      pushLog({ kind: 'image', ok: true, provider: provider.name, model, url, status: 200, durationMs: Date.now() - t0, message: m('main.log_img2img_ok', { count: images.length }) })
+      pushLog({ kind: 'image', ok: true, provider: provider.name, model, url, status: 200, durationMs: Date.now() - t0, tokens: extractTokens(json), message: m('main.log_img2img_ok', { count: images.length }) })
       return { images, model, prompt }
     } catch (err) {
       pushLog({ kind: 'image', ok: false, provider: provider.name, model, url, status: err.status, durationMs: Date.now() - t0, message: err.message, detail: err.responseText })
@@ -876,7 +908,12 @@ function registerIpc() {
     try {
       if (!baseUrl) throw new Error(m('main.err_no_endpoint'))
       if (!model) throw new Error(m('main.err_pick_chat_model'))
-      const history = Array.isArray(payload.messages) ? payload.messages : []
+      // Keep only real user/assistant turns and guarantee every message carries a
+      // content field — strict providers (Rust-based deserializers) reject messages
+      // where the content key is absent, and tool-status rows are not valid history.
+      const history = (Array.isArray(payload.messages) ? payload.messages : [])
+        .filter((msg) => msg && (msg.role === 'user' || msg.role === 'assistant'))
+        .map((msg) => (msg.content == null ? { ...msg, content: '' } : msg))
       if (!history.length) throw new Error(m('main.err_no_messages'))
 
       const ws = agentWorkspace(settings)
@@ -884,6 +921,7 @@ function registerIpc() {
         ? [{ role: 'system', content: agentSystemPrompt(ws) }, ...history]
         : [...history]
 
+      let tok = null
       for (let round = 0; round < AGENT_MAX_ROUNDS; round++) {
         if (ctrl.signal.aborted) throw abortedError()
         const body = { model, messages: protocol, temperature: payload.temperature ?? 0.7 }
@@ -895,6 +933,8 @@ function registerIpc() {
           timeoutMs: 180000,
           signal: ctrl.signal
         })
+        // Accumulate prompt/completion tokens across agent rounds
+        tok = addTokens(tok, extractTokens(json))
         const message = json?.choices?.[0]?.message
         const { text, reasoning } = pickMessageContent(message)
         const toolCalls = Array.isArray(message?.tool_calls) ? message.tool_calls : []
@@ -902,7 +942,7 @@ function registerIpc() {
         // No tool calls -> final answer
         if (!useTools || !toolCalls.length) {
           if (!text) throw new Error(m('main.err_no_content'))
-          pushLog({ kind: 'chat', ok: true, provider: provider.name, model, url, status: 200, durationMs: Date.now() - t0, message: m('main.log_chat_ok') })
+          pushLog({ kind: 'chat', ok: true, provider: provider.name, model, url, status: 200, durationMs: Date.now() - t0, tokens: tok, message: m('main.log_chat_ok') })
           return reasoning ? { content: text, reasoning } : { content: text }
         }
 
@@ -953,7 +993,7 @@ function registerIpc() {
         }
       }
       // Step limit reached without a final answer
-      pushLog({ kind: 'chat', ok: true, provider: provider.name, model, url, durationMs: Date.now() - t0, message: m('main.log_agent_limit') })
+      pushLog({ kind: 'chat', ok: true, provider: provider.name, model, url, durationMs: Date.now() - t0, tokens: tok, message: m('main.log_agent_limit') })
       return { content: m('main.agent_max_rounds', { count: AGENT_MAX_ROUNDS }) }
     } catch (err) {
       if (ctrl.userAborted) {
@@ -1028,7 +1068,7 @@ function registerIpc() {
       })
       const out = json?.choices?.[0]?.message?.content
       if (!out || !String(out).trim()) throw new Error(m('main.err_optimize_no_content'))
-      pushLog({ kind: 'optimize', ok: true, provider: provider.name, model, url, status: 200, durationMs: Date.now() - t0, message: m('main.log_optimize_ok') })
+      pushLog({ kind: 'optimize', ok: true, provider: provider.name, model, url, status: 200, durationMs: Date.now() - t0, tokens: extractTokens(json), message: m('main.log_optimize_ok') })
       return { prompt: String(out).trim() }
     } catch (err) {
       pushLog({ kind: 'optimize', ok: false, provider: provider.name, model, url, status: err.status, durationMs: Date.now() - t0, message: err.message, detail: err.responseText })
@@ -1152,7 +1192,8 @@ function registerIpc() {
         videos = await pollVideoJob(baseUrl, provider, jobId)
       }
       if (!videos.length) throw new Error(m('main.err_no_video_url'))
-      pushLog({ kind: 'video', ok: true, provider: provider.name, model, url, status: 200, durationMs: Date.now() - t0, message: m('main.log_video_ok', { count: videos.length }) })
+      // Token usage when the provider reports it (async task APIs often omit usage on create)
+      pushLog({ kind: 'video', ok: true, provider: provider.name, model, url, status: 200, durationMs: Date.now() - t0, tokens: extractTokens(json), message: m('main.log_video_ok', { count: videos.length }) })
       return { videos, model, prompt }
     } catch (err) {
       pushLog({ kind: 'video', ok: false, provider: provider.name, model, url, status: err.status, durationMs: Date.now() - t0, message: err.message, detail: err.responseText })

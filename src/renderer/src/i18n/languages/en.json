@@ -224,7 +224,18 @@
     "model_top": "Top Models",
     "clear_failed": "Clear failed",
     "no_data": "No data yet, go generate a few images to try.",
-    "sub": "Proxy quota + local cumulative usage"
+    "tokens_title": "Token Usage",
+    "tokens_input": "Input",
+    "tokens_output": "Output",
+    "tokens_total": "Total",
+    "tokens_by_model": "Tokens by model",
+    "tokens_none": "No token data yet — totals appear after chat, optimize, or image requests that report token usage.",
+    "sub": "Proxy quota + local cumulative usage",
+    "chart_requests_title": "Requests — last 7 days",
+    "chart_tokens_title": "Tokens — last 7 days",
+    "models_requests_title": "Top models — requests",
+    "models_tokens_title": "Top models — tokens",
+    "filter_hint": "Click to filter the charts below"
   },
   "logs": {
     "title": "Logs",
@@ -262,6 +273,9 @@
     "model_label": "Model",
     "info_label": "Info",
     "raw_head": "Raw Response",
+    "tokens": "Tokens",
+    "tok_in": "in",
+    "tok_out": "out",
     "empty_sub": "Image/video generation or test connections will be recorded here",
     "duration": "Duration"
   },

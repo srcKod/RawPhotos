@@ -361,7 +361,7 @@ function toApiMessage(m, overrideText) {
     for (const u of m.images) content.push({ type: 'image_url', image_url: { url: u } })
     return { role: 'user', content }
   }
-  return { role: m.role, content: textPart }
+  return { role: m.role, content: textPart ?? '' }
 }
 
 async function send() {
@@ -393,7 +393,12 @@ async function send() {
   attachments.value = []
   scrollDown()
 
-  const hist = messages.value.slice(-16)
+  // Only real conversation turns go back to the API: tool status rows are UI-only
+  // (they have no tool_call_id and would serialize without content), and synthetic
+  // error bubbles are not model output.
+  const hist = messages.value
+    .filter((m) => m.role === 'user' || (m.role === 'assistant' && m.text && !m.error))
+    .slice(-16)
   const apiMessages = hist.map((m) => toApiMessage(m, m === userMsg ? apiText : null))
 
   sending.value = true
