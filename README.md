@@ -2,7 +2,7 @@
 
 # RawPhotos
 
-**AI 文生图 / 文生视频 / 图生图 / AI 对话 桌面应用**
+**AI Text-to-Image / Text-to-Video / Image-to-Image / AI Chat Desktop Application**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 [![Release](https://img.shields.io/github/v/release/yz46bbbqqz-rgb/RawPhotos?color=success)](https://github.com/yz46bbbqqz-rgb/RawPhotos/releases/latest)
@@ -10,86 +10,83 @@
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D6)
 [![Stars](https://img.shields.io/github/stars/yz46bbbqqz-rgb/RawPhotos?style=flat&color=yellow)](https://github.com/yz46bbbqqz-rgb/RawPhotos/stargazers)
 
-通过任意 **OpenAI 兼容的中转 / 聚合代理接口**，在一个桌面端完成出图、出片、图生图与 AI 对话，
-内置多接口管理、用量统计、中转额度、运行日志与主题系统。
+Complete image generation, video generation, image editing, and AI chat in one desktop app using any OpenAI-compatible proxy interface.
 
-基于 Electron + Vue 3 构建 · Windows 桌面应用
-
-[社区支持](https://linux.do)
+Built with Electron + Vue 3 · Windows desktop application
 
 </div>
 
 ---
 
-## 🔎 快速引导
+## 🔎 Quick Start Guide
 
-- [声明](#-声明)
-- [功能](#-功能)
-- [快速开始](#-快速开始)
-- [接口配置](#️-接口配置)
-- [功能详解](#-功能详解)
-- [数据存储位置](#️-数据存储位置)
-- [自行打包](#-自行打包)
-- [目录结构](#-目录结构)
-- [技术栈](#️-技术栈)
+- [Disclaimer](#-disclaimer)
+- [Features](#-features)
+- [Getting Started](#-getting-started)
+- [Interface Configuration](#️-interface-configuration)
+- [Feature Details](#-feature-details)
+- [Data Storage Location](#️-data-storage-location)
+- [Build from Source](#-build-from-source)
+- [Project Structure](#-project-structure)
+- [Tech Stack](#️-tech-stack)
 - [License](#-license)
-- [社区支持](#-社区支持)
 
 ---
 
-## 📢 声明
+## 📢 Disclaimer
 
-本项目仅供学习、研究与自用。使用本项目访问的任何第三方接口、模型与生成内容，其合规性与后果由使用者自行承担。
+This project is for learning, research, and personal use only. Any third-party interfaces, models, or generated content accessed through this project are used at your own risk.
 
-本项目是一个**纯客户端**：不内置任何模型，也不提供任何接口，只是把你自己的「中转 / 聚合代理接口」接进来调用。你的 API Key 仅保存在本机，请求由桌面端的主进程直接发起，不经过任何第三方服务器。
+This project is a **pure client-side application**: it contains no built-in models and provides no interfaces. It simply connects your own "proxy/aggregation interface" to make calls. Your API Key is stored locally only, and requests are sent directly from the main process without passing through any third-party servers.
 
-本项目与 OpenAI、Anthropic、xAI、Google 等任何模型 / 接口官方无关，不代表任何官方立场。
-
----
-
-## ✨ 功能
-
-- **文生图**：输入提示词出图，单次 1–4 张，可选尺寸；支持**生成队列**连续排队、顺序执行
-- **文生视频**：提示词生成视频，兼容同步直出与异步任务轮询，可设尺寸 / 时长
-- **图生图**：上传参考图 + 提示词，走 `/images/edits` 重绘
-- **AI 提示词优化**：用对话模型把提示词扩写得更具体（图片 / 视频不同方向）
-- **AI 对话**：
-  - **可独立选择接口与模型**——出图用 A 中转、聊天用 B 中转的 GPT 分组，互不影响
-  - 对话历史自动保存、历史列表、导出 Markdown
-  - 支持上传图片（视觉模型）与文本文件
-  - Markdown 渲染、停止生成、清空对话、消息复制
-- **多接口管理**：保存多个中转接口（各自地址 / Key / 图片·视频·对话模型 / 尺寸），一键「设为当前」；模型可从接口 `/models` **下拉自动匹配**或手动输入
-- **画廊**：浏览本地已保存的图片与视频，按类型筛选
-- **用量统计**：累计图片 / 视频 / 优化 / 对话次数、成功率、近 7 天趋势、按模型 Top
-- **中转额度**：自动查询并常显当前接口余额（侧栏 + 统计页），可设**低额度预警**（定时检查 + 系统通知）
-- **运行日志**：每次请求的状态码与**接口原始返回**，失败排查一目了然，持久化到本地
-- **主题系统**：海盐 / 晴绿 / 曜夜 + 自定义取色，自动记忆
-- **托盘运行**：关闭可选「最小化到托盘 / 退出」，托盘图标随时恢复
+This project is not affiliated with OpenAI, Anthropic, xAI, Google, or any other model/interface provider.
 
 ---
 
-## 🚀 快速开始
+## ✨ Features
 
-### 方式一：直接使用（推荐）
+- **Text-to-Image**: Generate images from prompts, 1-4 per request with optional dimensions; supports **generation queue** for sequential processing
+- **Text-to-Video**: Generate videos from prompts with sync/async polling support; legacy and **OpenAI Videos (Sora-style)** request styles; configurable dimensions and duration
+- **Image-to-Image**: Upload reference image with prompt for editing via `/images/edits`
+- **AI Prompt Optimization**: Expand prompts using chat models for better results
+- **AI Chat**:
+  - **Independent interface and model selection** — use different proxies for image vs chat
+  - Auto-save conversation history, history list, export as Markdown
+  - Supports image (vision) and file uploads
+  - Markdown rendering, stop generation, clear chat, copy messages
+- **AI Agent Tools**: Let the chat model run local tools — list directories, read/write files, run commands — inside a confined **Agent Workspace**, with per-call permission prompts and session-scoped approvals
+- **Multiple Interface Management**: Save multiple proxy interfaces with their addresses, API Keys, image/video/chat models, and dimensions; one-click "set as current"; models auto-populated from `/models` or manual input
+- **Provider Presets**: Recommended models and video API settings auto-filled for known providers (Google Gemini compat, Volcano Ark, bundled relays)
+- **Gallery**: Browse saved local images and videos with type filters
+- **Usage Statistics**: Track counts, success rate, 7-day trends, top models
+- **Quota Display**: Auto-check and display current interface quota in sidebar and stats page; set low quota alerts
+- **Runtime Logs**: Record request status codes and raw responses for debugging
+- **Theme System**: Sky / Green / Dark + custom colors, auto-memory
+- **Internationalization**: English (default) and Chinese interface, one-click switch in the sidebar
+- **Tray Operation**: Minimize to tray or exit completely
 
-到 [Releases](https://github.com/yz46bbbqqz-rgb/RawPhotos/releases) 下载：
+---
 
-- **安装包** `RawPhotos Setup x.y.z.exe`：双击安装，可自选目录、自动建桌面 / 开始菜单快捷方式
-- **便携版** `RawPhotos-portable-x.y.z.zip`：解压后双击 `RawPhotos.exe`，免安装
+## 🚀 Getting Started
 
-> 安装包未做代码签名，首次运行 Windows 可能提示「未知发布者 / SmartScreen」，点 **更多信息 → 仍要运行** 即可。
+### Option 1: Download Pre-built (Recommended)
 
-首次打开 → 进「设置」填中转地址 + API Key 即可使用。
+Go to [Releases](https://github.com/yz46bbbqqz-rgb/RawPhotos/releases) to download:
 
-### 方式二：从源码运行
+- **Installer** `RawPhotos Setup x.y.z.exe`: Double-click to install, can customize location and create shortcuts
+- **Portable** `RawPhotos-portable-x.y.z.zip`: Extract and run `RawPhotos.exe` without installation
+
+First launch → Go to Settings → Enter proxy address + API Key → Ready to use.
+
+### Option 2: Run from Source
 
 ```bash
-# 需要 Node.js 18+
+# Requires Node.js 18+
 npm install
 npm run dev
 ```
 
-> 国内若 `npm install` 后报 `Error: Electron uninstall`（Electron 二进制没下下来），用镜像重下：
+> If you encounter `Error: Electron uninstall` after `npm install`, use mirror:
 >
 > ```powershell
 > $env:ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"; node node_modules/electron/install.js
@@ -97,143 +94,170 @@ npm run dev
 
 ---
 
-## ⚙️ 接口配置
+## ⚙️ Interface Configuration
 
-进「设置 → 接口配置 → 新增接口」，可保存多个中转，每个接口字段：
+Go to Settings → Interface Configuration → Add Interface to save proxies:
 
-| 字段 | 说明 | 示例 |
+| Field | Description | Example |
 | --- | --- | --- |
-| 接口名称 | 自定义备注 | `中转接口` / `gpt` |
-| Base URL | OpenAI 兼容地址，通常以 `/v1` 结尾 | `https://your-relay-host.com/v1` |
-| API Key | 接口密钥 | `sk-...` |
-| 图片模型 | 文生图模型 | `grok-imagine-image` / `flux` |
-| 视频模型 | 文生视频模型（留空则不出片） | `grok-imagine-video` |
-| 优化模型 | 对话模型，用于「AI 优化提示词」 | `gpt-4o-mini` / `grok-3-mini` |
-| 图片 / 视频尺寸、时长 | 可选 | `1024x1024` / `1280x720` / `5` |
-| 高级 · 接口路径 | 图生图 `/images/edits`、出片 `/videos/generations`，按平台改 | |
+| Interface Name | Custom label | `My Relay` / `gpt` |
+| Base URL | OpenAI-compatible endpoint | `https://your-relay.com/v1` |
+| API Key | Interface key | `sk-...` |
+| Image Model | Text-to-image model | `grok-imagine-image` / `flux` |
+| Video Model | Text-to-video model | `grok-imagine-video` |
+| Optimize Model | Chat model for prompt optimization | `gpt-4o-mini` |
+| Dimensions / Duration | Optional | `1024x1024` |
 
-- 模型框可**从接口 `/models` 下拉**（自动按图片 / 视频 / 对话筛选并默认选中），也可切「手动输入」。
-- 点接口圆点或「设为当前」即生效（立即保存）。
-- **对话页可单独选接口 / 模型**，与出图用的「当前接口」互不影响。
+Models can be **auto-populated from `/models`** or manually entered.
 
-涉及端点：出图 `…/images/generations`、出片 `…/videos/generations`、图生图 `…/images/edits`、对话 / 优化 `…/chat/completions`、模型列表 `…/models`、额度 `…/usage` 或 `…/dashboard/billing`。
+### Built-in Presets
 
----
+When an interface's Base URL matches a known provider, RawPhotos automatically fills in recommended settings (existing entries are migrated too):
 
-## 🧩 功能详解
+| Preset | Detected by Base URL | Pre-filled |
+| --- | --- | --- |
+| Google Gemini (compat) | `generativelanguage.googleapis.com/v1beta/openai` | images `gemini-2.5-flash-image`, video `veo-3.1-generate-preview`, strict OpenAI Videos style |
+| Volcano Ark (Seedream) | `ark.cn-beijing.volces.com/api/v3` | images `doubao-seedream-4-0-250828` (Seedance video uses Ark's own task API and is not covered yet) |
 
-### 生成（文生图 / 文生视频 / 图生图）
-点「生成」可在图片 / 视频间切换。图片模式可上传**参考图**走图生图。点生成即**加入队列**，多任务顺序执行，结果以卡片展示，可保存 / 另存为 / 放大预览。
+### Advanced (per-interface)
 
-### AI 对话
-左侧是历史会话列表，右侧是对话区。**底部可单独选「接口」和「模型」**——这样聊天用 GPT 分组、出图用绘图分组互不打架。支持上传图片（视觉）/ 文本文件、Markdown 渲染、停止生成、清空、导出 `.md`。对话**自动保存**，重启后历史还在。
+Expand **Advanced** on an interface to tune protocol details:
 
-### 画廊
-浏览保存目录下的图片（内联）与视频（自定义 `rawmedia://` 协议流式播放），支持「全部 / 图片 / 视频」筛选与另存为。
+| Field | Description | Default |
+| --- | --- | --- |
+| Image Edit Path | Endpoint used for image-to-image uploads | `/images/edits` |
+| Video Path | Endpoint that creates video jobs | `/videos/generations` |
+| Async Path | Polling URL for async video jobs; `{id}` is replaced with the job id (absolute URLs supported) | empty → `{videoPath}/{id}` |
+| Video API Style | Request dialect, see below | Default (`/videos/generations`) |
 
-### 用量统计 & 中转额度
-统计页顶部是**中转额度卡**（剩余 / 总额 / 已用 + 进度条，定时刷新），下面是本地累计用量（按类型 / 模型 / 近 7 天）与成功率。侧栏左下角也常显剩余额度。
+**Video API Style** switches how video requests are built:
 
-### 额度预警
-设置 →「额度预警」开启后，每 60 秒检查余额，**跌破阈值弹提示 + 系统通知**（最小化到托盘也能收到）。
-
-### 运行日志
-每次出图 / 出片 / 优化 / 对话 / 测试都会记录请求状态码与**接口原始返回**，持久化到本地，可清空 / 打开日志文件。接口报错时直接看原文，定位最快。
-
-### 主题与窗口
-海盐 / 晴绿 / 曜夜 + 自定义取色，启动即记忆。关闭窗口可选「最小化到托盘」或「退出」，托盘图标随时恢复。
+- **Default** — legacy async dialect: `POST` to Video Path, poll Async Path, numeric `seconds` + `duration`.
+- **OpenAI Videos (`/videos`)** — Sora-style: `POST {base}/videos` with `prompt`, string `seconds`, size tiers (`720P` / `1080P` / `1K` / `2K`), and `mode` / `first_frame` for image-to-video; polling prefers `video_id` (e.g. Agnes and other Sora-compatible surfaces).
+- **OpenAI Videos, strict (Google Gemini)** — same flow, but only `model` + `prompt` are sent at top level; duration, aspect ratio and the reference image go into `extra_body`, which Google's compat layer requires.
 
 ---
 
-## 🗂️ 数据存储位置
+## 🧩 Feature Details
 
-应用数据都在系统用户数据目录（Windows 约为 `%APPDATA%/RawPhotos`）：
+### Generation (Text-to-Image / Text-to-Video / Image-to-Image)
+Click "Generate" to switch between image / video modes. Image mode supports uploading **reference images** for image-to-image editing. Clicking generate adds to queue for sequential processing; results display as cards, saveable/exportable with zoom preview.
 
-| 文件 | 内容 |
+### AI Chat
+Left sidebar shows conversation history, right side is chat area. **Bottom allows independent selection of "interface" and "model"** — so chat can use different interfaces than image generation without conflicts. Supports image (vision)/text file uploads, Markdown rendering, stop generation, clear, export `.md`. History auto-saves and persists after restart.
+
+### AI Agent Tools (Chat)
+Toggle the **Tools** pill in the chat composer to let the model act on your computer. It can call local tools in a loop — `list_dir`, `read_file`, `write_file`, `run_command` — up to 20 rounds per request. Tool activity streams into the timeline as cards (spinner while running, ✓/✗ with result previews when done).
+
+All access is confined to the **Agent Workspace** folder configured in Settings (leave empty to use your home folder; changes apply from the next message).
+
+Permission modes (Tools pill):
+
+- **Always ask** (default) — a permission card appears for every tool call; choose **Always this session** to approve that tool for the rest of the session
+- **Auto-allow read-only** — `list_dir` / `read_file` run silently; writes and commands still prompt
+- **Allow all** — never prompt
+
+Unanswered prompts are auto-denied after 2 minutes, **Stop** aborts pending calls, and approvals are enforced in the main process — the renderer can never grant itself tools.
+
+### Gallery
+Browse saved images and videos with type filters (all/image/video), supports save-as.
+
+### Usage Statistics & Quota
+Stats page shows **quota card** (remaining/total/used + progress bar, auto-refresh) and local usage stats (by type/model/7-day trends) and success rate. Remaining quota also displayed in bottom-left of sidebar.
+
+### Low Quota Alert
+Enable in Settings → Quota Alert, checks every 60 seconds and notifies on low balance.
+
+### Runtime Logs
+Each image/video/optimize/chat/test request logs status code and **raw responses**, persists locally, searchable. Log entries and error messages follow the selected interface language.
+
+### Theme & Window
+Sky / Green / Dark themes with custom colors, auto-memory. Close window to minimize to tray or exit; tray icon restores window.
+
+### Languages
+English is the default interface language; switch to Chinese from the globe selector in the sidebar. Main-process messages (logs, error toasts, dialog filters) follow the same selection. Adding a third language is a JSON-only change in `src/renderer/src/i18n/languages/`.
+
+---
+
+## 🗂️ Data Storage Location
+
+Application data stored in system user directory (Windows: `%APPDATA%/RawPhotos`):
+
+| File | Content |
 | --- | --- |
-| `settings.json` | 全部设置（接口、主题、预警等） |
-| `rawphotos-chats.json` | 对话历史 |
-| `rawphotos-usage.json` | 累计用量统计 |
-| `rawphotos.log` | 运行日志（JSONL） |
+| `settings.json` | All settings (interfaces, theme, alerts, etc.) |
+| `rawphotos-chats.json` | Conversation history |
+| `rawphotos-usage.json` | Usage statistics |
+| `rawphotos.log` | Runtime logs (JSONL format) |
 
-- 生成的图片 / 视频默认存「图片/RawPhotos」，可在设置里改目录。
-- API Key 仅保存在本机，请求由主进程发起，不经浏览器、无跨域。
+- Generated images/videos stored in "Pictures/RawPhotos" by default, configurable in settings
+- API Key stored locally only, requests sent from main process
 
 ---
 
-## 📦 自行打包
+## 📦 Build from Source
 
 ```bash
 npm run dist:win
 ```
 
-产物在 `release/`：NSIS 安装包 `RawPhotos Setup x.y.z.exe`。
+Output in `release/`: NSIS installer `RawPhotos Setup x.y.z.exe`.
 
-> **国内打包提示**：electron-builder 首次打包要下载 `winCodeSign` / `nsis` 工具链，且解压 Electron 时会被杀软实时扫描拖慢——**别中途打断**，耐心等「unpacking default Electron distribution」那一步即可。可设镜像加速：
+> **Windows Build Tips**: electron-builder downloads `winCodeSign` / `nsis` toolchain, and extracts Electron while antivirus scans—**don't interrupt**, wait for "unpacking default Electron distribution" step. You can set mirrors:
 >
 > ```powershell
 > $env:ELECTRON_BUILDER_BINARIES_MIRROR="https://npmmirror.com/mirrors/electron-builder-binaries/"
-> $env:CSC_IDENTITY_AUTO_DISCOVERY="false"   # 跳过代码签名
+> $env:CSC_IDENTITY_AUTO_DISCOVERY="false"   # Skip code signing
 > npm run dist:win
 > ```
 
 ---
 
-## 📁 目录结构
+## 📁 Project Structure
 
 ```
 RawPhotos/
 ├── src/
-│   ├── main/index.js        # 主进程：窗口/托盘、IPC、调接口、设置/历史/用量/日志、rawmedia 协议
-│   ├── preload/index.js     # 预加载：contextBridge 暴露 window.api
-│   └── renderer/            # Vue 渲染层
+│   ├── main/index.js        # Main process: windows/tray, IPC, API calls, agent tools, settings/history/stats/logs, rawmedia protocol
+│   ├── preload/index.js     # Preload: exposes window.api via contextBridge
+│   └── renderer/            # Vue frontend
 │       ├── index.html
 │       └── src/
-│           ├── App.vue          # 外壳：导航 + 主题 + 余额 + 关闭弹窗 + 预警
-│           ├── store.js         # 设置 + 会话结果 + 主题
-│           ├── components/      # 生成/对话/画廊/统计/日志/设置/关于 + 媒体卡/灯箱/下拉/图标/Toast
+│           ├── App.vue          # Shell: navigation, theme, quota, close dialog, alerts
+│           ├── store.js         # Settings, chat results, theme
+│           ├── components/      # Generate/chat/gallery/statistics/logs/settings/about + media cards, lightbox, dropdown, icon, Toast
+│           ├── i18n/            # en/zh locale catalogs (shared with the main process)
 │           └── composables/
-├── resources/icon.png       # 运行时图标（托盘 / 窗口 / 通知）
-├── build/icon.png           # 打包图标
-├── electron-builder.yml     # 打包配置
+├── resources/icon.png       # Runtime icon (tray, window, notifications)
+├── build/icon.png           # Build icon
+├── electron-builder.yml     # Build configuration
 ├── electron.vite.config.mjs
-├── AGENTS.md                # 给 AI 助手的工程记忆
+├── AGENTS.md                # Engineering memory for AI assistants
 └── package.json
 ```
 
 ---
 
-## 🛠️ 技术栈
+## 🛠️ Tech Stack
 
 - **Electron 42** + **electron-vite**
-- **Vue 3**（`<script setup>`）+ **Vite**
-- `marked`（对话 Markdown 渲染）
-- **electron-builder**（Windows NSIS 打包）
+- **Vue 3** (`<script setup>`) + **Vite**
+- **vue-i18n** + **@intlify/core-base** (shared en/zh catalogs for renderer and main process)
+- `marked` (Chat Markdown rendering)
+- **electron-builder** (Windows NSIS packaging)
 
-> 给 AI 助手 / 协作者的工程记忆与设计约束见 [`AGENTS.md`](./AGENTS.md)。
+> Engineering design guidelines for AI assistants are in [`AGENTS.md`](./AGENTS.md).
 
 ---
 
 ## 📄 License
 
-本项目基于 [Apache License 2.0](./LICENSE) 许可证开源；第三方组件许可见 [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)。
+This project is licensed under the [Apache License 2.0](./LICENSE); third-party library licenses are listed in [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
 
-> 本项目是 [yz46bbbqqz-rgb/RawPhotos](https://github.com/yz46bbbqqz-rgb/RawPhotos) 的修改分支（fork），由 [srcKod](https://github.com/srcKod) 维护与扩展；与原作者无关联，亦未获其认可。
-
----
-
-## 💬 社区支持
-
-欢迎到 [linux.do](https://linux.do) 交流、分享与反馈。
+> This is a modified fork of [yz46bbbqqz-rgb/RawPhotos](https://github.com/yz46bbbqqz-rgb/RawPhotos), maintained and extended by [srcKod](https://github.com/srcKod); it is not affiliated with or endorsed by the original authors.
 
 ---
 
 <div align="center">
-如果这个项目对你有帮助，欢迎 Star ⭐
+If this project has helped you, please give it a ⭐
 </div>
-
----
-
-## 🌐 语言 / Language
-
-本项目文档为中文。English documentation is available at [README_EN.md](./README_EN.md).
