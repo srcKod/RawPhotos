@@ -216,7 +216,9 @@ RawPhotos/
 
 ## 📄 License
 
-见 [LICENSE](./LICENSE)。
+本项目基于 [Apache License 2.0](./LICENSE) 许可证开源；第三方组件许可见 [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)。
+
+> 本项目是 [yz46bbbqqz-rgb/RawPhotos](https://github.com/yz46bbbqqz-rgb/RawPhotos) 的修改分支（fork），由 [srcKod](https://github.com/srcKod) 维护与扩展；与原作者无关联，亦未获其认可。
 
 ---
 

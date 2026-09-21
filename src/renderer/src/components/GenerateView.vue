@@ -1,6 +1,6 @@
 <script setup>
 import { useI18n } from 'vue-i18n'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { store, addResults, clearResults, isConfigured, activeProvider, setActiveProvider } from '../store'
 import { toast } from '../composables/useToast'
 import MediaCard from './MediaCard.vue'
@@ -38,12 +38,24 @@ const providerOptions = computed(() =>
 
 const activeId = computed({
   get: () => store.settings.activeProviderId,
-  set: async (id) => {
-    await setActiveProvider(id)
+  set: (id) => setActiveProvider(id) // the watcher below reloads models + autopicks
+})
+
+// Keep the model list consistent with the selected provider: GenerateView stays mounted
+// (v-show), so its fetched list must reload whenever the active provider changes in
+// Settings — or the active provider's endpoint/key is edited — not only via this view's
+// own dropdown.
+watch(
+  () => {
+    const p = provider.value
+    return [store.settings.activeProviderId, p?.baseUrl, p?.apiKey]
+  },
+  async () => {
+    model.value = ''
     await loadGenModels()
     autoPickModel()
   }
-})
+)
 
 const videoReady = computed(() => Boolean(provider.value && provider.value.videoModel))
 const modelPlaceholder = computed(() =>

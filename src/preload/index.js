@@ -11,6 +11,17 @@ const api = {
   optimizePrompt: (payload) => ipcRenderer.invoke('prompt:optimize', payload),
   chatSend: (payload) => ipcRenderer.invoke('chat:send', payload),
   chatAbort: () => ipcRenderer.invoke('chat:abort'),
+  onChatEvent: (cb) => {
+    const handler = (_e, event) => cb(event)
+    ipcRenderer.on('chat:event', handler)
+    return () => ipcRenderer.removeListener('chat:event', handler)
+  },
+  onAgentPermission: (cb) => {
+    const handler = (_e, req) => cb(req)
+    ipcRenderer.on('agent:permission', handler)
+    return () => ipcRenderer.removeListener('agent:permission', handler)
+  },
+  agentConfirm: (callId, decision) => ipcRenderer.invoke('agent:confirm', callId, decision),
   chatsList: () => ipcRenderer.invoke('chats:list'),
   chatsGet: (id) => ipcRenderer.invoke('chats:get', id),
   chatsSave: (conv) => ipcRenderer.invoke('chats:save', conv),
