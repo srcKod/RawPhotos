@@ -208,7 +208,9 @@ RawPhotos/
 
 ## 📄 License
 
-See [LICENSE](./LICENSE).
+This project is licensed under the [Apache License 2.0](./LICENSE); third-party library licenses are listed in [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
+
+> This is a modified fork of [yz46bbbqqz-rgb/RawPhotos](https://github.com/yz46bbbqqz-rgb/RawPhotos), maintained and extended by [srcKod](https://github.com/srcKod); it is not affiliated with or endorsed by the original authors.
 
 ---
 
