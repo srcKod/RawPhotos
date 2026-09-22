@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (log entries, error messages, provider presets, default chat title) shares the same
   en/zh catalogs through `@intlify/core-base`, so adding a third language stays a
   JSON-only task.
+- **Arabic interface (العربية) with full RTL support** — a third language alongside
+  English and Chinese, registered in both the renderer and main-process catalogs so
+  logs and errors translate too. The document `lang`/`dir` attributes switch at
+  runtime and physical CSS properties were migrated to logical equivalents, so the
+  entire layout mirrors; chat rows stay physically anchored (user right, assistant
+  left) and window chrome keeps the OS layout.
+- **Token usage tracking** — every generation records input/output tokens per model
+  and per day, surfaced as a Token Usage card in Stats (clickable In/Out/Total tiles
+  filter the 7-day chart and per-model breakdown) and a tokens row in expanded log
+  details.
 - **OpenAI Videos (Sora-style) video adapter** — a per-provider *Video API style* setting
   now supports the legacy `/videos/generations` flow, the OpenAI Videos flow
   (`POST /videos` create, `video_id` polling, `metadata.url` download), and a strict
@@ -48,6 +58,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Message bubbles keyed text direction off the first strong character
+  (`dir="auto"`), so an Arabic message starting with an English word or code token
+  (e.g. `` `python-docx` متوفرة ``) rendered left-to-right; direction now follows
+  the message's dominant script, for tool results and thinking blocks too.
+- Chat input caret followed the UI language instead of the text being typed;
+  input boxes now auto-detect LTR/RTL per content in Chat and Generate.
+- Clicking a chat title could swap titles around: the list was sorted by
+  `updatedAt`, which the auto-save bumps on every switch; it now sorts by
+  `createdAt`.
+- Markdown export of RTL conversations: lines starting with English words now
+  carry an RLM mark after the block prefix so they flow right-to-left, tables
+  align right in RTL exports (left in LTR), bullet-style lines keep their line
+  breaks, role labels render as headings, tool and thinking blocks are excluded,
+  and the export date is localized.
 - Chat model list: a manually chosen provider model no longer disappears after models
   load or after picking another model.
 - Settings theme cards displayed raw translation keys (`theme.green`) instead of names.
