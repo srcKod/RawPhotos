@@ -96,7 +96,7 @@ onUnmounted(() => {
   border-radius: var(--radius-sm);
   color: var(--text);
   font-size: 13.5px;
-  text-align: left;
+  text-align: start;
   transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
 }
 .dd-sm .dd-btn {
@@ -157,7 +157,7 @@ onUnmounted(() => {
   border-radius: 6px;
   color: var(--text-2);
   font-size: 13px;
-  text-align: left;
+  text-align: start;
   transition: background 0.12s ease, color 0.12s ease;
 }
 .dd-opt:hover {

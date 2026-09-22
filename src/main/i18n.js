@@ -17,18 +17,19 @@ import {
 } from '@intlify/core-base'
 import en from '../renderer/src/i18n/languages/en.json'
 import zh from '../renderer/src/i18n/languages/zh.json'
+import ar from '../renderer/src/i18n/languages/ar.json'
 
 const ctx = createCoreContext({
   locale: 'en',
   fallbackLocale: 'en',
-  messages: { en, zh },
+  messages: { en, zh, ar },
   messageCompiler: compileToFunction,
   messageResolver: resolveValue,
   localeFallbacker: fallbackWithLocaleChain
 })
 
 export function setLocale(lang) {
-  if (lang === 'en' || lang === 'zh') ctx.locale = lang
+  if (lang === 'en' || lang === 'zh' || lang === 'ar') ctx.locale = lang
 }
 
 // Translate a key ({param} named interpolation supported). Returns the key itself

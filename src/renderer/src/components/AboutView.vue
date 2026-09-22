@@ -45,7 +45,7 @@ const features = [
     <header class="view-head">
       <div class="head-title">
         <h1>{{ t('about.title') }}</h1>
-        <p class="sub">{{ t('about.app_name') }} · AI Text-to-Image / Text-to-Video Desktop App</p>
+        <p class="sub">{{ t('about.app_name') }} · {{ t('about.tagline') }}</p>
       </div>
     </header>
 
@@ -87,7 +87,7 @@ const features = [
         </div>
       </section>
 
-      <p class="foot-note">{{ t('about.copyright') }}</p>
+      <p class="foot-note" dir="auto">{{ t('about.copyright') }}</p>
     </div>
   </div>
 </template>

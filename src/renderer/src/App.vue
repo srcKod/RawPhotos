@@ -290,7 +290,7 @@ onUnmounted(() => {
   flex-direction: column;
   padding: 14px 12px;
   background: var(--bg-1);
-  border-right: 1px solid var(--border);
+  border-inline-end: 1px solid var(--border);
 }
 .nav {
   display: flex;
@@ -318,7 +318,7 @@ onUnmounted(() => {
   color: var(--accent);
 }
 .nav-dot {
-  margin-left: auto;
+  margin-inline-end: auto;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -352,7 +352,7 @@ onUnmounted(() => {
 }
 .lang-current {
   flex: 1;
-  text-align: left;
+  text-align: start;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -391,7 +391,7 @@ onUnmounted(() => {
   color: var(--text-2);
   font-size: 13px;
   cursor: pointer;
-  text-align: left;
+  text-align: start;
   transition: background 0.12s ease, color 0.12s ease;
 }
 .lang-option:hover {
@@ -541,7 +541,7 @@ onUnmounted(() => {
 .modal-x {
   position: absolute;
   top: 14px;
-  right: 14px;
+  inset-inline-end: 14px;
   width: 26px;
   height: 26px;
   border-radius: 7px;
@@ -577,7 +577,7 @@ onUnmounted(() => {
   border-radius: var(--radius);
   background: var(--bg-1);
   border: 1px solid var(--border);
-  text-align: left;
+  text-align: start;
   transition: border-color 0.14s ease, background 0.14s ease, transform 0.06s ease;
 }
 .choice:hover {

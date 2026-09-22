@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 import { ref, computed, onMounted, watch } from 'vue'
 import { store, addResults, clearResults, isConfigured, activeProvider, setActiveProvider } from '../store'
 import { toast } from '../composables/useToast'
+import { useInputDir } from '../composables/useInputDir'
 import MediaCard from './MediaCard.vue'
 import Lightbox from './Lightbox.vue'
 import Icon from './Icon.vue'
@@ -13,6 +14,7 @@ const emit = defineEmits(['go-settings'])
 
 const mode = ref('image')
 const prompt = ref('')
+const promptDir = useInputDir(prompt)
 const count = ref(store.settings.defaultCount || 1)
 const model = ref('')
 const modelsList = ref([])
@@ -316,6 +318,7 @@ function onKeydown(e) {
             class="textarea prompt-input"
             rows="4"
             :disabled="optimizing"
+            :dir="promptDir"
             :placeholder="mode === 'video'
               ? t('generate.placeholder_video')
               : t('generate.placeholder_image')"

@@ -15,7 +15,8 @@ const KIND = {
   video: 'logs.type_video',
   optimize: 'logs.type_optimize',
   chat: 'logs.type_chat',
-  test: 'logs.type_test'
+  test: 'logs.type_test',
+  agent: 'logs.type_agent'
 }
 
 function fmtTime(ms) {
@@ -211,7 +212,7 @@ onUnmounted(() => off && off())
   gap: 11px;
   width: 100%;
   padding: 10px 13px;
-  text-align: left;
+  text-align: start;
 }
 .log-row:hover {
   background: var(--surface-2);
@@ -250,6 +251,9 @@ onUnmounted(() => off && off())
 }
 .kind.video {
   color: #4f83e0;
+}
+.kind.agent {
+  color: #d29a3a;
 }
 .kind.optimize,
 .kind.chat {

@@ -1421,10 +1421,12 @@ function registerIpc() {
     return { total: round(total), used: round(used), remaining: round(remaining), unit }
   })
 
+  // Sort by stable createdAt (not updatedAt): openConv auto-saves the old chat on
+  // every switch, which would otherwise bump updatedAt and swap titles around.
   ipcMain.handle('chats:list', async () =>
     chats
       .map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt, count: (c.messages || []).length }))
-      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
   )
   ipcMain.handle('chats:get', async (_e, id) => chats.find((c) => c.id === id) || null)
   ipcMain.handle('chats:save', async (_e, conv) => {

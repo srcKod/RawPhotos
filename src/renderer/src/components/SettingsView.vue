@@ -701,7 +701,7 @@ async function openDir() {
   border-radius: var(--radius-sm);
   background: var(--bg-1);
   border: 1px solid var(--border);
-  text-align: left;
+  text-align: start;
   transition: border-color 0.14s ease, background 0.14s ease;
 }
 .provider-item:hover {
@@ -903,7 +903,7 @@ code {
   border-radius: var(--radius-sm);
   background: var(--bg-1);
   border: 1px solid var(--border);
-  text-align: left;
+  text-align: start;
   transition: border-color 0.14s ease, transform 0.1s ease;
 }
 .theme-card:hover {

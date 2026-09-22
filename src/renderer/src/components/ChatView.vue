@@ -3,7 +3,9 @@ import { useI18n } from 'vue-i18n'
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { marked } from 'marked'
 import { store, persistSettings, activeProvider } from '../store'
+import { RTL_LOCALES } from '../i18n'
 import { toast } from '../composables/useToast'
+import { useInputDir } from '../composables/useInputDir'
 import Icon from './Icon.vue'
 import Dropdown from './Dropdown.vue'
 
@@ -32,9 +34,10 @@ function onMsgClick(e) {
   }
 }
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const messages = ref([]) // { id, role, text, images:[dataUrl], files:[{name}], error? }
 const input = ref('')
+const inputDir = useInputDir(input)
 const attachments = ref([])
 const sending = ref(false)
 const models = ref([])
@@ -293,21 +296,164 @@ const toolMode = computed({
   }
 })
 
+// Message-level RTL detection: a message counts as RTL when its text holds
+// more right-to-left characters (Arabic, Hebrew, ...) than Latin/CJK ones,
+// independent of the UI language (en/zh are both LTR).
+const RTL_CHARS = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/g
+const LTR_CHARS = /[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF\u2E80-\u9FFF\uAC00-\uD7AF]/g
+function isRtlText(text) {
+  const s = String(text || '')
+  const r = (s.match(RTL_CHARS) || []).length
+  const l = (s.match(LTR_CHARS) || []).length
+  return r > 0 && r > l
+}
+
+// Resolve a message bubble's direction from its dominant script so the
+// whole bubble flows the right way. dir="auto" only looks at the first
+// strong character, so a message that starts with an English code token
+// like "`python-docx` متوفرة" would render left-to-right even though the
+// body is Arabic — this forces the dominant direction instead.
+function msgDir(m) {
+  return isRtlText(m.text) || isRtlText(m.reasoning) ? 'rtl' : 'ltr'
+}
+
+// UI layout direction: when the interface language is RTL (Arabic) the input
+// caret and text flow start from the right instead of content-guessing.
+const uiRtl = computed(() => RTL_LOCALES.includes(locale.value))
+
+// Unicode RIGHT-TO-LEFT MARK (invisible, zero-width). Placed on an RTL line
+// so the bidi algorithm keys off it instead of the first English word —
+// otherwise a sentence that starts with an LTR word (e.g. a product name)
+// renders left-to-right even with Arabic after it. It must land AFTER any
+// markdown block-prefix syntax (#, >, -, 1.) rather than at the absolute
+// start of the line: CommonMark requires those markers to be the very first
+// character, so a mark placed before them silently breaks the heading/list/
+// quote (this is why headings occasionally rendered as plain, garbled text).
+// Table rows are never marked here at all — they're handled separately by
+// formatBody's table wrapping, because a mark before a row's leading "|" is parsed as an
+// extra empty cell, quietly shifting that one row a column to the right
+// relative to the rest of the table (the misalignment bug).
+const RLM = '\u200F'
+const RTL_LINE_RE = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/
+// Latin / CJK / Greek / Cyrillic — the LTR strong set for the check below.
+const BIDI_L = /[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF\u2E80-\u9FFF\uAC00-\uD7AF]/
+// Leading markdown block syntax that must stay at column 0: ATX headings,
+// blockquote markers (possibly nested), bullet items, ordered items.
+const BLOCK_PREFIX_RE = /^(\s{0,3}(?:#{1,6}\s+|(?:>\s?)+|[-*+]\s+|\d{1,9}[.)]\s+))/
+// A line needs the mark only when its first strong directional character is
+// LTR but the line also carries RTL text. Pure-RTL lines are already RTL.
+function needsRtlMark(line) {
+  if (!RTL_LINE_RE.test(line)) return false
+  for (const ch of line) {
+    if (BIDI_L.test(ch)) return true // first strong char is LTR → needs mark
+    if (RTL_LINE_RE.test(ch)) return false // first strong char is RTL → already RTL
+  }
+  return false
+}
+function markRtlLine(line) {
+  if (!needsRtlMark(line)) return line
+  const prefix = line.match(BLOCK_PREFIX_RE)
+  return prefix ? prefix[0] + RLM + line.slice(prefix[0].length) : RLM + line
+}
+
 function buildMarkdown() {
   const lines = [
     `# ${t('chat.export_title')}`,
     '',
-    t('chat.model') + ': ' + (chatModel.value || '-') + ' · ' + t('chat.export_time') + ': ' + new Date().toLocaleString(),
+    t('chat.model') + ': ' + (chatModel.value || '-') + ' · ' + t('chat.export_time') + ': ' + new Date().toLocaleString(locale.value),
     ''
   ]
   for (const m of messages.value) {
-    lines.push(m.role === 'user' ? t('chat.me') : t('chat.assistant'))
-    if (m.files && m.files.length) lines.push(...m.files.map((f) => `📎 ${f.name}`))
-    if (m.images && m.images.length) lines.push(`(${m.images.length} ${t('chat.images_unit')})`)
-    if (m.reasoning) lines.push('> ' + t('chat.thinking') + ':\n> ' + String(m.reasoning).split('\n').join('\n> '))
-    lines.push('', m.text || '', '')
+    // Tool cards, permission prompts and thinking blocks are developer
+    // details — the log keeps only user/assistant text.
+    if (m.role === 'tool') continue
+    // Skip messages that would render as an empty block (aborted sends,
+    // placeholder entries) so the log carries no blank sections.
+    if (!String(m.text || '').trim() && !(m.files && m.files.length) && !(m.images && m.images.length)) continue
+    const roleLabel = m.role === 'user' ? t('chat.me') : t('chat.assistant')
+    // Per-message direction: RTL when the message text holds more
+    // right-to-left characters than LTR ones.
+    const rtl = isRtlText(m.text)
+    const mark = (line) => (rtl ? markRtlLine(line) : line)
+    lines.push(mark(`## ${roleLabel}:`))
+    if (m.files && m.files.length) for (const f of m.files) lines.push(mark(`📎 ${f.name}`))
+    if (m.images && m.images.length) lines.push(mark(`(${m.images.length} ${t('chat.images_unit')})`))
+    lines.push('', formatBody(String(m.text || ''), rtl), '')
   }
   return lines.join('\n')
+}
+
+// Applies markRtlLine to every ordinary line of a message and, separately,
+// wraps each markdown table in the message so it lays out right-to-left as
+// a block (not just right-aligned text inside left-positioned columns).
+// Code fences are passed through untouched in both regards.
+function formatBody(text, rtl) {
+  const lines = text.split('\n')
+  const out = []
+  let fenced = false
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (/^\s*```/.test(line)) {
+      fenced = !fenced
+      out.push(line)
+      continue
+    }
+    if (fenced) {
+      out.push(line)
+      continue
+    }
+    if (rtl && /\|/.test(line) && isTableSeparatorRow(lines[i + 1])) {
+      const tableLines = [line, alignSeparatorRtl(lines[i + 1])]
+      let j = i + 2
+      while (j < lines.length && lines[j].trim() !== '' && /\|/.test(lines[j])) {
+        tableLines.push(lines[j])
+        j++
+      }
+      // A raw <div dir="rtl"> block, blank-line-separated from the table
+      // inside it, is the one technique that reliably survives across
+      // markdown renderers (VS Code preview, GitHub, marked.js): the div
+      // stays open in the resulting HTML while the enclosed table is still
+      // parsed as a normal GFM table, so the browser lays its columns out
+      // right-to-left and positions the whole block on the right — plain
+      // CommonMark tables have no syntax for this, only per-cell alignment.
+      out.push('<div dir="rtl">', '', ...tableLines, '', '</div>')
+      i = j - 1
+      continue
+    }
+    out.push(hardBreakLine(rtl ? markRtlLine(line) : line, line))
+  }
+  return out.join('\n')
+}
+// The in-app preview renders with marked's `breaks: true`, so every line
+// break in a message is already shown as a visual break — including plain
+// lines like "✅ **item** - detail" that aren't real list syntax. Plain
+// CommonMark (VS Code's preview, GitHub, ...) does not do this: consecutive
+// non-blank lines with no blank line between them collapse into one
+// paragraph, merging what looked like separate bullet lines into a single
+// run-on line. Appending a real Markdown hard break (two trailing spaces)
+// makes the exported file render the same way everywhere. Skipped for lines
+// that already start their own block (heading/list/quote — no break needed)
+// and for blank lines (already a paragraph boundary).
+function hardBreakLine(outLine, rawLine) {
+  if (rawLine.trim() === '' || BLOCK_PREFIX_RE.test(rawLine)) return outLine
+  return outLine.replace(/\s+$/, '') + '  '
+}
+function isTableSeparatorRow(line) {
+  if (line == null) return false
+  const t = line.trim()
+  return t !== '' && /\|/.test(t) && /^[\s|:-]+$/.test(t) && /-/.test(t)
+}
+// Table cell alignment in markdown comes from the separator row (| --- | vs
+// | ---: |). Rows the model wrote without explicit alignment default to
+// left-aligned text, which reads wrong inside an RTL file, so on RTL exports
+// an unspecified separator gets right-alignment applied. Author-specified
+// colons (:---, :---:, ---:) are respected as-is.
+function alignSeparatorRtl(line) {
+  if (line.includes(':')) return line
+  return line
+    .split('|')
+    .map((seg) => (seg.trim() ? ' ---: ' : seg))
+    .join('|')
 }
 
 async function exportMd() {
@@ -534,7 +680,7 @@ onUnmounted(() => {
                 <span class="tool-detail">{{ toolSummary(m) }}</span>
                 <span class="tool-state">{{ m.state === 'ok' ? '✓' : m.state === 'error' ? '✗' : m.state === 'denied' ? '⊘' : '…' }}</span>
               </button>
-              <div v-show="openTools.has(m.id)" v-if="m.result && toolSummary(m) !== m.result" class="tool-result" dir="auto">{{ m.result }}</div>
+              <div v-show="openTools.has(m.id)" v-if="m.result && toolSummary(m) !== m.result" class="tool-result" :dir="isRtlText(m.result) ? 'rtl' : 'ltr'">{{ m.result }}</div>
             </div>
             <div v-else class="bubble" :class="{ error: m.error }">
               <div v-if="m.reasoning" class="think">
@@ -542,7 +688,7 @@ onUnmounted(() => {
                   <span class="think-chev" :class="{ open: openThink.has(m.id) }">▸</span>
                   <span>{{ t('chat.thinking') }}</span>
                 </button>
-                <div v-show="openThink.has(m.id)" class="think-body" dir="auto">{{ m.reasoning }}</div>
+                <div v-show="openThink.has(m.id)" class="think-body" :dir="isRtlText(m.reasoning) ? 'rtl' : 'ltr'">{{ m.reasoning }}</div>
               </div>
               <div v-if="m.images && m.images.length" class="msg-imgs">
                 <img v-for="(im, i) in m.images" :key="i" :src="im" :alt="t('gallery.images')" />
@@ -555,11 +701,11 @@ onUnmounted(() => {
               <div
                 v-if="m.role === 'assistant' && !m.error && m.text"
                 class="md-body"
-                dir="auto"
+                :dir="msgDir(m)"
                 v-html="mdToHtml(m.text)"
                 @click="onMsgClick"
               ></div>
-              <p v-else-if="m.text" class="msg-text" dir="auto">{{ m.text }}</p>
+              <p v-else-if="m.text" class="msg-text" :dir="msgDir(m)">{{ m.text }}</p>
             </div>
             <button
               v-if="m.role === 'assistant' && !m.error && m.text"
@@ -595,7 +741,7 @@ onUnmounted(() => {
         </div>
 
         <div class="composer">
-          <div class="composer-tools">
+          <div class="ws-row">
             <span
               class="ws-chip"
               :class="{ clickable: agentWorkspace }"
@@ -605,6 +751,8 @@ onUnmounted(() => {
               <Icon name="folder" :size="13" />
               <span class="ws-name">{{ workspaceName }}</span>
             </span>
+          </div>
+          <div class="composer-tools">
             <span class="ct-label">{{ t('settings.interface_config') }}</span>
             <div class="ct-prov">
               <Dropdown v-model="chatProviderId" :options="providerOptions" size="sm" :placeholder="t('chat.select_provider')" />
@@ -633,7 +781,7 @@ onUnmounted(() => {
             <textarea
               v-model="input"
               class="chat-input"
-              dir="auto"
+              :dir="inputDir"
               rows="1"
               :placeholder="configured ? t('chat.send_placeholder') : t('settings.not_configured')"
               :disabled="!configured || sending"
@@ -727,7 +875,8 @@ onUnmounted(() => {
 .conv-list {
   width: 232px;
   flex-shrink: 0;
-  border-right: 1px solid var(--border);
+  /* RTL-safe: the separator follows the list's inline-end side when dir=rtl mirrors the layout */
+  border-inline-end: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   background: var(--bg-2);
@@ -881,6 +1030,10 @@ onUnmounted(() => {
   display: flex;
   gap: 11px;
   width: 100%;
+  /* Physical anchoring: user rows stay right, assistant rows stay left even
+     when the UI language is RTL (Arabic/Hebrew). Message content direction
+     is resolved per-bubble from its dominant script (see msgDir). */
+  direction: ltr;
 }
 .msg.user {
   flex-direction: row-reverse;
@@ -913,12 +1066,15 @@ onUnmounted(() => {
 .msg.assistant .bubble {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-top-left-radius: 4px;
+  border-start-start-radius: 4px;
+  /* Assistant bubbles span the full row width (minus the avatar) */
+  flex: 1;
+  max-width: none;
 }
 .msg.user .bubble {
   background: var(--accent);
   color: var(--on-accent, #fff);
-  border-top-right-radius: 4px;
+  border-start-end-radius: 4px;
 }
 .bubble.error {
   background: rgba(225, 29, 72, 0.1);
@@ -1043,7 +1199,7 @@ onUnmounted(() => {
 .md-body :deep(ul),
 .md-body :deep(ol) {
   margin: 6px 0;
-  padding-left: 20px;
+  padding-inline-start: 20px;
 }
 .md-body :deep(li) {
   margin: 3px 0;
@@ -1076,9 +1232,9 @@ onUnmounted(() => {
   font-weight: 700;
 }
 .md-body :deep(blockquote) {
-  border-left: 3px solid var(--border-2);
+  border-inline-start: 3px solid var(--border-2);
   margin: 8px 0;
-  padding-left: 12px;
+  padding-inline-start: 12px;
   color: var(--text-2);
 }
 .md-body :deep(table) {
@@ -1132,8 +1288,13 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--text-3);
 }
+.ws-row {
+  display: flex;
+  margin-bottom: 8px;
+}
 .ws-chip {
-  margin-right: auto;
+  /* Own row directly above the input: aligned to the inline start edge in
+     both LTR and RTL (physical margins would break RTL hit-testing). */
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1198,7 +1359,7 @@ onUnmounted(() => {
 .attach-x {
   position: absolute;
   top: -6px;
-  right: -6px;
+  inset-inline-end: -6px;
   width: 18px;
   height: 18px;
   border-radius: 50%;
@@ -1217,7 +1378,8 @@ onUnmounted(() => {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 8px 8px 8px 10px;
+  padding-block: 8px;
+  padding-inline: 10px 8px;
 }
 .composer-main:focus-within {
   border-color: var(--accent-line);
@@ -1312,7 +1474,7 @@ onUnmounted(() => {
   color: inherit;
   font-family: inherit;
   font-size: 11.5px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   opacity: 0.75;
   min-width: 0;
@@ -1337,12 +1499,12 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   direction: rtl;
-  text-align: left;
+  text-align: start;
   unicode-bidi: plaintext;
 }
 .tool-bubble .tool-state {
   flex: none;
-  margin-left: auto;
+  margin-inline-end: auto;
 }
 .tool-bubble.ok .tool-state {
   color: #34a853;
