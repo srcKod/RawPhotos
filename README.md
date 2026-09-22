@@ -5,10 +5,10 @@
 **AI Text-to-Image / Text-to-Video / Image-to-Image / AI Chat Desktop Application**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
-[![Release](https://img.shields.io/github/v/release/yz46bbbqqz-rgb/RawPhotos?color=success)](https://github.com/yz46bbbqqz-rgb/RawPhotos/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/yz46bbbqqz-rgb/RawPhotos/total?color=brightgreen)](https://github.com/yz46bbbqqz-rgb/RawPhotos/releases)
+[![Release](https://img.shields.io/github/v/release/srcKod/RawPhotos?color=success)](https://github.com/srcKod/RawPhotos/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/srcKod/RawPhotos/total?color=brightgreen)](https://github.com/srcKod/RawPhotos/releases)
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D6)
-[![Stars](https://img.shields.io/github/stars/yz46bbbqqz-rgb/RawPhotos?style=flat&color=yellow)](https://github.com/yz46bbbqqz-rgb/RawPhotos/stargazers)
+[![Stars](https://img.shields.io/github/stars/srcKod/RawPhotos?style=flat&color=yellow)](https://github.com/srcKod/RawPhotos/stargazers)
 
 Complete image generation, video generation, image editing, and AI chat in one desktop app using any OpenAI-compatible proxy interface.
 
@@ -62,7 +62,7 @@ This project is not affiliated with OpenAI, Anthropic, xAI, Google, or any other
 - **Quota Display**: Auto-check and display current interface quota in sidebar and stats page; set low quota alerts
 - **Runtime Logs**: Record request status codes and raw responses for debugging
 - **Theme System**: Sky / Green / Dark + custom colors, auto-memory
-- **Internationalization**: English (default) and Chinese interface, one-click switch in the sidebar
+- **Internationalization**: English (default), Chinese, and Arabic (with full RTL layout) interface, one-click switch in the sidebar
 - **Tray Operation**: Minimize to tray or exit completely
 
 ---
@@ -71,7 +71,7 @@ This project is not affiliated with OpenAI, Anthropic, xAI, Google, or any other
 
 ### Option 1: Download Pre-built (Recommended)
 
-Go to [Releases](https://github.com/yz46bbbqqz-rgb/RawPhotos/releases) to download:
+Go to [Releases](https://github.com/srcKod/RawPhotos/releases) to download:
 
 - **Installer** `RawPhotos Setup x.y.z.exe`: Double-click to install, can customize location and create shortcuts
 - **Portable** `RawPhotos-portable-x.y.z.zip`: Extract and run `RawPhotos.exe` without installation
@@ -175,7 +175,7 @@ Each image/video/optimize/chat/test request logs status code and **raw responses
 Sky / Green / Dark themes with custom colors, auto-memory. Close window to minimize to tray or exit; tray icon restores window.
 
 ### Languages
-English is the default interface language; switch to Chinese from the globe selector in the sidebar. Main-process messages (logs, error toasts, dialog filters) follow the same selection. Adding a third language is a JSON-only change in `src/renderer/src/i18n/languages/`.
+English is the default interface language; switch to Chinese or Arabic from the globe selector in the sidebar. Arabic ships full right-to-left support: the whole layout mirrors, chat rows stay anchored (user right / assistant left), input boxes and message bubbles follow the text's direction, and Markdown exports carry proper RTL marks and table alignment. Main-process messages (logs, error toasts, dialog filters) follow the same selection. Adding another language is a JSON-only change in `src/renderer/src/i18n/languages/`.
 
 ---
 
@@ -226,7 +226,7 @@ RawPhotos/
 │           ├── App.vue          # Shell: navigation, theme, quota, close dialog, alerts
 │           ├── store.js         # Settings, chat results, theme
 │           ├── components/      # Generate/chat/gallery/statistics/logs/settings/about + media cards, lightbox, dropdown, icon, Toast
-│           ├── i18n/            # en/zh locale catalogs (shared with the main process)
+│           ├── i18n/            # en/zh/ar locale catalogs (shared with the main process)
 │           └── composables/
 ├── resources/icon.png       # Runtime icon (tray, window, notifications)
 ├── build/icon.png           # Build icon
@@ -242,7 +242,7 @@ RawPhotos/
 
 - **Electron 42** + **electron-vite**
 - **Vue 3** (`<script setup>`) + **Vite**
-- **vue-i18n** + **@intlify/core-base** (shared en/zh catalogs for renderer and main process)
+- **vue-i18n** + **@intlify/core-base** (shared en/zh/ar catalogs for renderer and main process)
 - `marked` (Chat Markdown rendering)
 - **electron-builder** (Windows NSIS packaging)
 
