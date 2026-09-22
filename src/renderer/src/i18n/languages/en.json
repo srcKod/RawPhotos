@@ -277,7 +277,8 @@
     "tok_in": "in",
     "tok_out": "out",
     "empty_sub": "Image/video generation or test connections will be recorded here",
-    "duration": "Duration"
+    "duration": "Duration",
+    "type_agent": "Agent"
   },
   "settings": {
     "title": "Settings",
@@ -379,6 +380,7 @@
   "about": {
     "title": "About",
     "app_name": "RawPhotos",
+    "tagline": "AI Text-to-Image / Text-to-Video Desktop App",
     "copyright": "(C) RawPhotos - For learning and personal creative use only.",
     "app_desc": "A desktop creation tool based on Electron + Vue 3.",
     "qq_group": "QQ Group",

@@ -277,7 +277,8 @@
     "tok_in": "输入",
     "tok_out": "输出",
     "empty_sub": "生成图片 / 视频或测试连接后，记录会出现在这里",
-    "duration": "耗时"
+    "duration": "耗时",
+    "type_agent": "智能体"
   },
   "settings": {
     "title": "设置",
@@ -379,6 +380,7 @@
   "about": {
     "title": "关于",
     "app_name": "RawPhotos",
+    "tagline": "AI 文生图 / 文生视频桌面应用",
     "copyright": "© RawPhotos · 仅供学习与个人创作使用。",
     "app_desc": "基于 Electron + Vue 3 的桌面创作工具。",
     "qq_group": "交流 / 反馈 QQ 群",

@@ -52,11 +52,14 @@ const close = () => emit('close-request')
   height: var(--titlebar-h);
   display: flex;
   align-items: center;
+  /* Window chrome keeps OS layout in RTL locales too: brand/logo stays on
+     the left, min/max/close stay on the right (Windows convention). */
+  direction: ltr;
   background: var(--bg-1);
   border-bottom: 1px solid var(--border);
   -webkit-app-region: drag;
   flex-shrink: 0;
-  padding-left: 14px;
+  padding-inline-start: 14px;
 }
 .tb-brand {
   display: flex;
@@ -81,9 +84,9 @@ const close = () => emit('close-request')
 .tb-tag {
   font-size: 11.5px;
   color: var(--text-3);
-  padding-left: 10px;
-  margin-left: 2px;
-  border-left: 1px solid var(--border);
+  padding-inline-start: 10px;
+  margin-inline-start: 2px;
+  border-inline-start: 1px solid var(--border);
   -webkit-app-region: no-drag;
   cursor: pointer;
   transition: color 0.14s ease;
